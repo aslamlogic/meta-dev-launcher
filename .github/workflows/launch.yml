@@ -1,12 +1,25 @@
-name: Test Dev Box
+name: Dev Box Docker Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  run-devbox:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Say hello
-        run: echo "Dev Box is working"
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Create test Dockerfile
+        run: |
+          cat <<EOF > Dockerfile
+          FROM python:3.12
+          CMD ["python", "-c", "print('Dev Box inside Docker is working')"]
+          EOF
+
+      - name: Build Docker image
+        run: docker build -t devbox .
+
+      - name: Run Docker container
+        run: docker run devbox
