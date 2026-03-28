@@ -13,5 +13,36 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Show spec file
-        run: cat specs/init.json
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Generate FastAPI app
+        run: |
+          FRAMEWORK=$(jq -r '.build.framework' specs/init.json)
+
+          if [ "$FRAMEWORK" = "fastapi" ]; then
+            mkdir -p app
+
+            cat <<EOF > app/main.py
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return {"message": "Hello from meta-dev system"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+EOF
+          fi
+
+      - name: Commit generated code
+        run: |
+          git config --global user.name "meta-dev-bot"
+          git config --global user.email "bot@meta.dev"
+
+          git add .
+          git commit -m "Auto-generated FastAPI app" || echo "No changes"
+          git push
