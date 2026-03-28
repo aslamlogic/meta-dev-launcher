@@ -6,33 +6,12 @@ on:
       - 'specs/**'
 
 jobs:
-  run-devbox:
+  test-run:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Build app
-        run: |
-          echo "Building..."
-
-          cat > main.py << 'EOF'
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-EOF
-
-          cat > requirements.txt << 'EOF'
-fastapi
-uvicorn
-EOF
-
-      - name: Confirm build
-        run: |
-          echo "Files created:"
-          ls -la
+      - name: Debug trigger
+        run: echo "Pipeline triggered successfully"
