@@ -6,10 +6,36 @@ on:
       - 'specs/**'
 
 jobs:
-  test-run:
+  run-devbox:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Say hello
-        run: echo "WORKFLOW TRIGGERED SUCCESSFULLY"
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
+      - name: Build app
+        run: |
+          echo "Building..."
+
+          cat > main.py << 'EOF'
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+EOF
+
+          cat > requirements.txt << 'EOF'
+fastapi
+uvicorn
+EOF
+
+      - name: Commit build
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@test.com"
+          git add .
+          git commit -m "build step" || echo "no changes"
+          git push
