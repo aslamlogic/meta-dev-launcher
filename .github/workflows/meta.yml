@@ -13,5 +13,5 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Debug
-        run: echo "Pipeline working"
+      - name: Show spec file
+        run: cat specs/init.json
