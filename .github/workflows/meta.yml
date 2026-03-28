@@ -1,81 +1,15 @@
 name: Meta Dev Launcher
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - 'specs/**'
-  schedule:
-    - cron: "*/5 * * * *"
 
 jobs:
-  run-devbox:
+  test-run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+      - name: Say hello
+        run: echo "WORKFLOW TRIGGERED SUCCESSFULLY"
 
-      - name: Detect spec change
-        id: spec_check
-        run: |
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^specs/.*\.json$' || true)
-          else
-            CHANGED=$(git ls-files 'specs/*.json' || true)
-          fi
-
-          if [ -z "$CHANGED" ]; then
-            echo "no_change=true" >> $GITHUB_OUTPUT
-          else
-            echo "no_change=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Stop if no change
-        if: steps.spec_check.outputs.no_change == 'true'
-        run: echo "No change — exiting"
-
-      - name: AI Build + File Write
-        if: steps.spec_check.outputs.no_change == 'false'
-        run: |
-          echo "Starting deterministic build..."
-
-          cat > main.py << 'EOF'
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-@app.get("/")
-def root():
-    return {"message": "Meta Dev Launcher active"}
-EOF
-
-          cat > requirements.txt << 'EOF'
-fastapi
-uvicorn
-requests
-EOF
-
-          echo "Generated files:"
-          ls -la
-
-      - name: Commit generated files
-        if: steps.spec_check.outputs.no_change == 'false'
-        run: |
-          git config --global user.name "meta-dev-bot"
-          git config --global user.email "bot@meta.dev"
-
-          git add .
-          git commit -m "auto: generated app from spec" || echo "No changes to commit"
-          git push
-
-      - name: Placeholder for deployment module
-        if: steps.spec_check.outputs.no_change == 'false'
-        run: |
-          echo "Next step: deployment module execution (python deploy.py full)"
