@@ -7,7 +7,7 @@
     "owner": "aslamlogic",
     "description": "Autonomous system ignition"
   },
-  "repository": {
+  "repository": { 
     "provider": "github",
     "name": "aslamlogic/meta-dev-launcher",
     "default_branch": "main",
