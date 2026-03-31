@@ -20,7 +20,8 @@ def fail(msg):
 
 
 def read(path):
-    return json.load(open(path, "r"))
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def detect_mode():
@@ -68,66 +69,93 @@ def call(prompt):
 
     r = requests.post(
         API_URL,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
+        },
         json={
             "model": "gpt-5.4-mini",
             "input": [{"role": "user", "content": prompt}]
-        }
+        },
+        timeout=120
     )
 
     if r.status_code != 200:
         fail(r.text)
 
-    text = r.json()["output"][0]["content"][0]["text"]
+    data = r.json()
+
+    try:
+        text = data["output"][0]["content"][0]["text"]
+    except Exception:
+        fail("Unexpected response format")
+
     print("===== OPENAI OUTPUT =====")
     print(text)
     print("===== END =====")
-    return json.loads(text)
+
+    try:
+        return json.loads(text)
+    except Exception as e:
+        fail(f"JSON parse error: {e}")
 
 
-def safe(path):
-    if any(path.startswith(f) for f in FORBIDDEN):
-        print("SKIP", path)
-        return None
-    return path
+def is_forbidden(path):
+    return any(path.startswith(f) for f in FORBIDDEN)
 
 
 def write(files):
     for f in files:
-        p = safe(f["path"])
-        if not p:
+        path = f.get("path")
+        content = f.get("content")
+
+        if not path or not isinstance(content, str):
+            fail("Invalid file entry")
+
+        if is_forbidden(path):
+            print("SKIP", path)
             continue
-        Path(p).parent.mkdir(parents=True, exist_ok=True)
-        open(p, "w").write(f["content"])
-        print("WROTE", p)
+
+        safe_path = os.path.normpath(path)
+
+        if safe_path.startswith("..") or os.path.isabs(safe_path):
+            fail(f"Unsafe path: {path}")
+
+        Path(safe_path).parent.mkdir(parents=True, exist_ok=True)
+
+        with open(safe_path, "w", encoding="utf-8") as out:
+            out.write(content)
+
+        print("WROTE", safe_path)
 
 
 def run_orchestrator():
-    orchestrator_path = Path("meta_system/orchestrator.py")
-
-    if not orchestrator_path.exists():
-        print("No orchestrator found. Skipping execution.")
-        return
-
     print("===== RUNNING META SYSTEM =====")
+
     try:
         subprocess.run(
-            [sys.executable, str(orchestrator_path)],
+            [sys.executable, "-m", "meta_system.orchestrator"],
             check=True
         )
     except subprocess.CalledProcessError as e:
         print(f"Orchestrator failed: {e}")
+
     print("===== META SYSTEM COMPLETE =====")
 
 
 def main():
-    mode, path, spec = detect_mode()
+    mode, spec_path, spec = detect_mode()
     print("MODE:", mode)
 
     result = call(build_prompt(mode, spec))
-    write(result["files"])
+    files = result.get("files")
 
-    # CRITICAL: handoff
+    if not isinstance(files, list) or not files:
+        fail("No files returned")
+
+    write(files)
+
+    # critical handoff
     if mode == "meta":
         run_orchestrator()
 
