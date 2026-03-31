@@ -1,23 +1,26 @@
-"""Build application artifacts from specs."""
-
-from __future__ import annotations
-
 from pathlib import Path
-from typing import Any, Dict
+import json
 
 
 class AppBuilder:
-    def __init__(self, apps_dir: str = "apps/") -> None:
+    def __init__(self, apps_dir: Path):
         self.apps_dir = Path(apps_dir)
 
-    def build(self, app_spec: Dict[str, Any]) -> Path:
-        name = app_spec.get("name", "app")
-        app_dir = self.apps_dir / name
+    def build(self, spec: dict):
+        app_name = spec.get("name", "app")
+        app_dir = self.apps_dir / app_name
         app_dir.mkdir(parents=True, exist_ok=True)
-        artifact = app_dir / "app.py"
-        artifact.write_text(
-            f"# Auto-generated app: {name}\n"
-            f"SPEC = {app_spec!r}\n",
-            encoding="utf-8",
-        )
-        return artifact
+
+        manifest = {
+            "name": app_name,
+            "spec": spec,
+            "built": True,
+        }
+        manifest_path = app_dir / "build_manifest.json"
+        with manifest_path.open("w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+
+        return {
+            "app_dir": str(app_dir),
+            "manifest": str(manifest_path),
+        }

@@ -1,22 +1,14 @@
-"""Parallel task execution utilities."""
-
-from __future__ import annotations
-
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Iterable, List, TypeVar
-
-T = TypeVar("T")
-R = TypeVar("R")
 
 
 class Executor:
-    def __init__(self, max_workers: int | None = None) -> None:
-        self.max_workers = max_workers
+    def run_parallel(self, tasks):
+        results = []
+        if not tasks:
+            return results
 
-    def map_parallel(self, fn: Callable[[T], R], items: Iterable[T]) -> List[R]:
-        items_list = list(items)
-        if not items_list:
-            return []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            futures = [pool.submit(fn, item) for item in items_list]
-            return [future.result() for future in as_completed(futures)]
+        with ThreadPoolExecutor(max_workers=min(32, len(tasks))) as pool:
+            futures = [pool.submit(task) for task in tasks]
+            for future in as_completed(futures):
+                results.append(future.result())
+        return results
