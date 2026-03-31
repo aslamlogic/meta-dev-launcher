@@ -16,13 +16,65 @@ jobs:
         run: |
           mkdir -p engine
 
-          printf "import json\nfrom generator import generate_system\nfrom writer import write_files\n\ndef load_spec():\n    with open('specs/init.json','r') as f:\n        return json.load(f)\n\ndef main():\n    spec = load_spec()\n    files = generate_system(spec)\n    write_files(files)\n\nif __name__ == '__main__':\n    main()\n" > engine/runner.py
+          echo "import json
+from generator import generate_system
+from writer import write_files
 
-          printf "from claude_client import call_claude\n\ndef generate_system(spec):\n    return call_claude(str(spec)).get('files',[])\n" > engine/generator.py
+def load_spec():
+    with open('specs/init.json','r') as f:
+        return json.load(f)
 
-          printf "import os\n\ndef write_files(files):\n    for f in files:\n        os.makedirs(os.path.dirname(f['path']), exist_ok=True)\n        with open(f['path'],'w') as file:\n            file.write(f['content'])\n" > engine/writer.py
+def main():
+    spec = load_spec()
+    files = generate_system(spec)
+    write_files(files)
 
-          printf "import os,requests,json\n\ndef call_claude(prompt):\n    r = requests.post(\n        'https://api.anthropic.com/v1/messages',\n        headers={\n            'x-api-key': os.getenv('CLAUDE_API_KEY'),\n            'anthropic-version': '2023-06-01',\n            'content-type': 'application/json'\n        },\n        json={\n            'model': 'claude-3-5-sonnet-20240620',\n            'max_tokens': 2000,\n            'messages': [{'role':'user','content':prompt}]\n        }\n    )\n\n    data = r.json()\n\n    if 'content' in data and len(data['content']) > 0:\n        text = data['content'][0].get('text','')\n        try:\n            return json.loads(text)\n        except:\n            return {'files': []}\n\n    return {'files': []}\n" > engine/claude_client.py
+if __name__ == '__main__':
+    main()
+" > engine/runner.py
+
+          echo "from claude_client import call_claude
+
+def generate_system(spec):
+    return call_claude(str(spec)).get('files',[])
+" > engine/generator.py
+
+          echo "import os
+
+def write_files(files):
+    for f in files:
+        os.makedirs(os.path.dirname(f['path']), exist_ok=True)
+        with open(f['path'],'w') as file:
+            file.write(f['content'])
+" > engine/writer.py
+
+          echo "import os,requests,json
+
+def call_claude(prompt):
+    r = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key': os.getenv('CLAUDE_API_KEY'),
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        },
+        json={
+            'model': 'claude-3-5-sonnet-20240620',
+            'max_tokens': 2000,
+            'messages': [{'role':'user','content':prompt}]
+        }
+    )
+
+    try:
+        data = r.json()
+        if 'content' in data:
+            text = data['content'][0].get('text','')
+            return json.loads(text)
+    except:
+        pass
+
+    return {'files': []}
+" > engine/claude_client.py
 
       - name: Install deps
         run: pip install requests
@@ -32,5 +84,5 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
         run: python engine/runner.py
 
-- name: Done
-  run: echo "bootstrap complete" 
+      - name: Done
+        run: echo "bootstrap complete"
