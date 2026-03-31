@@ -1,0 +1,29 @@
+{
+  "target": "engine",
+  "objective": "Evolve the software factory engine itself without manual editing.",
+  "rules": {
+    "self_modify": true,
+    "preserve_openai_responses_api": true,
+    "preserve_github_actions_bootstrap": true,
+    "safe_relative_paths_only": true,
+    "full_files_only": true,
+    "no_snippets": true
+  },
+  "required_outputs": [
+    {
+      "path": "engine/bootstrap.py",
+      "purpose": "Main engine entrypoint that reads engine or app specs and writes generated files."
+    },
+    {
+      "path": ".github/workflows/bootstrap.yml",
+      "purpose": "Workflow that runs the engine and commits generated outputs."
+    }
+  ],
+  "future_capabilities": [
+    "engine self-rewrite from spec",
+    "application generation from init spec",
+    "multi-file project output",
+    "validator layer",
+    "iterative refinement"
+  ]
+}
