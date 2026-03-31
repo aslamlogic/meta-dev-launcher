@@ -15,13 +15,11 @@ def fail(msg):
 def extract_json(text):
     text = text.strip()
 
-    # direct parse
     try:
         return json.loads(text)
     except:
         pass
 
-    # fenced JSON
     blocks = re.findall(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     for b in blocks:
         try:
@@ -29,7 +27,6 @@ def extract_json(text):
         except:
             pass
 
-    # fallback full object
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1:
