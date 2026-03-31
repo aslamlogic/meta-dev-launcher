@@ -5,20 +5,15 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
-def load_app_specs(specs_dir: Path) -> List[Dict[str, Any]]:
-    if not specs_dir.exists() or not specs_dir.is_dir():
+def load_app_specs(specs_dir: str) -> List[Dict[str, Any]]:
+    base = Path(specs_dir)
+    if not base.exists():
         return []
 
     specs: List[Dict[str, Any]] = []
-    for path in sorted(specs_dir.glob("**/*")):
-        if path.is_file() and path.suffix.lower() in {".json", ".spec", ".txt"}:
-            try:
-                if path.suffix.lower() == ".json":
-                    data = json.loads(path.read_text(encoding="utf-8"))
-                else:
-                    data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    specs.append(data)
-            except Exception:
-                continue
+    for path in sorted(base.rglob("*.json")):
+        try:
+            specs.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
     return specs

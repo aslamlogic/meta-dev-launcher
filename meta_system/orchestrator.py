@@ -1,62 +1,64 @@
 from __future__ import annotations
 
-import argparse
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .spec_loader import load_app_specs
-from .app_builder import AppBuilder
-from .engine_builder import EngineBuilder
-from .deployer import Deployer
-from .executor import TaskExecutor
+from meta_system.spec_loader import load_app_specs
+from meta_system.app_builder import AppBuilder
+from meta_system.engine_builder import EngineBuilder
+from meta_system.deployer import Deployer
+from meta_system.executor import Executor
 
 
 class Orchestrator:
-    def __init__(self, app_specs_dir: str = "specs/apps/", meta_system_dir: str = "meta_system/", apps_dir: str = "apps/") -> None:
-        self.app_specs_dir = Path(app_specs_dir)
-        self.meta_system_dir = Path(meta_system_dir)
-        self.apps_dir = Path(apps_dir)
-        self.executor = TaskExecutor()
-        self.engine_builder = EngineBuilder(self.executor)
-        self.app_builder = AppBuilder(self.executor, self.engine_builder, self.apps_dir)
-        self.deployer = Deployer(self.executor, self.apps_dir)
+    def __init__(self, app_specs_dir: str = "specs/apps/", apps_dir: str = "apps/", meta_system_dir: str = "meta_system/"):
+        self.app_specs_dir = app_specs_dir
+        self.apps_dir = apps_dir
+        self.meta_system_dir = meta_system_dir
+        self.spec_loader = load_app_specs
+        self.app_builder = AppBuilder(apps_dir=self.apps_dir)
+        self.engine_builder = EngineBuilder(meta_system_dir=self.meta_system_dir)
+        self.deployer = Deployer(apps_dir=self.apps_dir)
+        self.executor = Executor()
 
     def run(self) -> Dict[str, Any]:
-        specs = load_app_specs(self.app_specs_dir)
-        results: List[Dict[str, Any]] = []
-
-        def build_and_deploy(spec: Dict[str, Any]) -> Dict[str, Any]:
-            app_result = self.app_builder.build(spec)
-            deploy_result = self.deployer.deploy(spec, app_result)
-            return {"app": spec.get("name", "unknown"), "build": app_result, "deploy": deploy_result}
-
+        specs = self.spec_loader(self.app_specs_dir)
         if not specs:
-            return {"status": "no_specs_found", "results": []}
+            return {"status": "noop", "message": "No app specs found."}
 
-        if len(specs) == 1:
-            results.append(build_and_deploy(specs[0]))
-        else:
-            with ThreadPoolExecutor(max_workers=min(8, len(specs))) as pool:
-                futures = {pool.submit(build_and_deploy, spec): spec for spec in specs}
-                for future in as_completed(futures):
-                    results.append(future.result())
+        results: List[Dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=min(32, max(1, len(specs)))) as pool:
+            futures = {pool.submit(self._build_and_deploy, spec): spec for spec in specs}
+            for future in as_completed(futures):
+                results.append(future.result())
 
-        return {"status": "success", "results": results}
+        return {"status": "ok", "results": results}
+
+    def _build_and_deploy(self, spec: Dict[str, Any]) -> Dict[str, Any]:
+        app_name = spec.get("name") or spec.get("app_name") or "unknown_app"
+        build_result = self.app_builder.build(spec)
+        engine_result = self.engine_builder.build(spec)
+        deploy_result = self.deployer.deploy(spec, build_result=build_result, engine_result=engine_result)
+        execution_result = self.executor.execute(spec, build_result=build_result, engine_result=engine_result, deploy_result=deploy_result)
+        return {
+            "app": app_name,
+            "build": build_result,
+            "engine": engine_result,
+            "deploy": deploy_result,
+            "execution": execution_result,
+        }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Meta system orchestrator")
-    parser.add_argument("--app-specs-dir", default="specs/apps/", help="Directory containing app specs")
-    parser.add_argument("--meta-system-dir", default="meta_system/", help="Meta system output directory")
-    parser.add_argument("--apps-dir", default="apps/", help="Apps output directory")
-    args = parser.parse_args()
-
-    orchestrator = Orchestrator(args.app_specs_dir, args.meta_system_dir, args.apps_dir)
+    orchestrator = Orchestrator(
+        app_specs_dir=os.environ.get("APP_SPECS_DIR", "specs/apps/"),
+        apps_dir=os.environ.get("APPS_DIR", "apps/"),
+        meta_system_dir=os.environ.get("META_SYSTEM_DIR", "meta_system/"),
+    )
     result = orchestrator.run()
-    print(json.dumps(result, indent=2))
+    print(result)
 
 
 if __name__ == "__main__":
