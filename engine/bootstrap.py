@@ -33,7 +33,26 @@ def main():
     with open("specs/init.json") as f:
         spec = json.load(f)
 
-    result = call_claude(str(spec))
+   prompt = f"""
+You are a software generator.
+
+Return ONLY valid JSON in this format:
+
+{{
+  "files": [
+    {{
+      "path": "filename",
+      "content": "file content"
+    }}
+  ]
+}}
+
+Build a working system from this specification:
+
+{json.dumps(spec, indent=2)}
+"""
+
+result = call_claude(prompt)
 
     for f in result.get("files", []):
         os.makedirs(os.path.dirname(f["path"]), exist_ok=True)
