@@ -1,13 +1,20 @@
 # meta-dev
 
-FastAPI application for Railway deployment.
+FastAPI service for Railway deployment.
 
 ## Endpoints
-- GET /
-- GET /health
+- `GET /`
+- `GET /health`
 
 ## Run locally
+
 ```bash
 pip install -r requirements.txt
-uvicorn main:app --reload
+python main.py
+```
+
+Or with uvicorn:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
