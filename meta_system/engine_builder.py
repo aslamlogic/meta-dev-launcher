@@ -1,15 +1,15 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any, Dict
 
 
 class EngineBuilder:
-    def __init__(self, apps_dir: str = "apps/") -> None:
-        self.apps_dir = Path(apps_dir)
+    def __init__(self, meta_system_dir: str = "meta_system/") -> None:
+        self.meta_system_dir = Path(meta_system_dir)
+        self.meta_system_dir.mkdir(parents=True, exist_ok=True)
 
-    def build(self, spec: Dict[str, Any]) -> Dict[str, Any]:
-        app_name = spec.get("name") or spec.get("app_name") or "app"
-        app_dir = self.apps_dir / app_name
-        app_dir.mkdir(parents=True, exist_ok=True)
-        engine_file = app_dir / "engine.txt"
-        engine_file.write_text(f"engine built for {app_name}\n", encoding="utf-8")
-        return {"app": app_name, "engine_path": str(engine_file)}
+    def build(self) -> Dict[str, Any]:
+        bootstrap = self.meta_system_dir / "bootstrap.marker"
+        bootstrap.write_text("use_existing_bootstrap=true\n", encoding="utf-8")
+        return {"engine": "built", "bootstrap": str(bootstrap)}

@@ -1,20 +1,30 @@
+from __future__ import annotations
+
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
+
+
+@dataclass
+class AppSpec:
+    name: str
+    raw: Dict[str, Any]
+    path: Path
 
 
 class SpecLoader:
     def __init__(self, app_specs_dir: str = "specs/apps/") -> None:
         self.app_specs_dir = Path(app_specs_dir)
 
-    def load_specs(self) -> List[Dict[str, Any]]:
+    def load(self) -> List[AppSpec]:
         if not self.app_specs_dir.exists():
             return []
-        specs: List[Dict[str, Any]] = []
+
+        specs: List[AppSpec] = []
         for path in sorted(self.app_specs_dir.glob("*.json")):
             with path.open("r", encoding="utf-8") as f:
-                spec = json.load(f)
-            if isinstance(spec, dict):
-                spec["__spec_path__"] = str(path)
-                specs.append(spec)
+                raw = json.load(f)
+            name = raw.get("name") or path.stem
+            specs.append(AppSpec(name=name, raw=raw, path=path))
         return specs
