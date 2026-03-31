@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: DEBUG FILE CONTENT
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Debug file
         run: |
           echo "===== CURRENT bootstrap.py ====="
           cat engine/bootstrap.py
@@ -23,3 +26,11 @@ jobs:
         env:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
         run: python engine/bootstrap.py
+
+      - name: Commit generated files
+        run: |
+          git config user.name "mbh-bot"
+          git config user.email "bot@mbh.ai"
+          git add .
+          git commit -m "MBH: generated system" || echo "No changes"
+          git push
