@@ -1,6 +1,7 @@
 {
   "project": "meta-dev",
   "version": "14",
+  "trigger": 2,
   "build": {
     "framework": "fastapi",
     "entrypoint": "main.py"
