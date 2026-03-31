@@ -23,7 +23,8 @@ def call_claude(prompt):
     try:
         data = r.json()
         if "content" in data:
-            return json.loads(data["content"][0]["text"])
+            text = data["content"][0].get("text", "")
+            return json.loads(text)
     except:
         pass
 
@@ -34,27 +35,33 @@ def main():
     with open("specs/init.json") as f:
         spec = json.load(f)
 
-    prompt = f"""You are a software generator.
+    prompt = f"""You are a senior software engineer.
 
-Return ONLY valid JSON in this format:
+Generate a COMPLETE working Python FastAPI application.
+
+Return ONLY valid JSON in this exact format:
+
 {{
   "files": [
     {{
-      "path": "filename",
-      "content": "file content"
+      "path": "main.py",
+      "content": "full python code"
+    }},
+    {{
+      "path": "requirements.txt",
+      "content": "dependencies"
     }}
   ]
 }}
 
-Build a working system from this specification:
-
+System specification:
 {json.dumps(spec, indent=2)}
 """
 
     result = call_claude(prompt)
 
     for f in result.get("files", []):
-        os.makedirs(os.path.dirname(f["path"]), exist_ok=True)
+        os.makedirs(os.path.dirname(f["path"]) or ".", exist_ok=True)
         with open(f["path"], "w") as file:
             file.write(f["content"])
 
