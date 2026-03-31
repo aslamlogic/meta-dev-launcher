@@ -1,0 +1,128 @@
+name: Bootstrap MBH
+
+on:
+  push:
+    paths:
+      - 'specs/**'
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create engine
+        run: |
+          mkdir -p engine
+
+          cat > engine/runner.py << 'EOF'
+import json
+from generator import generate_system
+from writer import write_files
+
+def load_spec():
+    with open("specs/init.json", "r") as f:
+        return json.load(f)
+
+def main():
+    spec = load_spec()
+    files = generate_system(spec)
+    write_files(files)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+          cat > engine/generator.py << 'EOF'
+from claude_client import call_claude
+
+def build_prompt(spec):
+    return f"""
+You are a senior software engineer.
+
+Return ONLY valid JSON:
+
+{{
+  "files": [
+    {{
+      "path": "file path",
+      "content": "file content"
+    }}
+  ]
+}}
+
+Specification:
+{spec}
+"""
+
+def generate_system(spec):
+    prompt = build_prompt(spec)
+    response = call_claude(prompt)
+    return response["files"]
+EOF
+
+          cat > engine/writer.py << 'EOF'
+import os
+
+def write_files(files):
+    for file in files:
+        path = file["path"]
+        content = file["content"]
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, "w") as f:
+            f.write(content)
+EOF
+
+          cat > engine/claude_client.py << 'EOF'
+import os
+import requests
+import json
+
+API_URL = "https://api.anthropic.com/v1/messages"
+
+def call_claude(prompt):
+    api_key = os.getenv("CLAUDE_API_KEY")
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+
+    body = {
+        "model": "claude-3-5-sonnet-20240620",
+        "max_tokens": 4000,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post(API_URL, headers=headers, json=body)
+
+    if response.status_code != 200:
+        raise Exception(response.text)
+
+    data = response.json()
+    text = data["content"][0]["text"]
+
+    return json.loads(text)
+EOF
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run engine
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: python engine/runner.py
+
+      - name: Commit results
+        run: |
+          git config user.name "mbh-bot"
+          git config user.email "bot@mbh.ai"
+          git add .
+          git commit -m "MBH bootstrap install" || echo "No changes"
+          git push
