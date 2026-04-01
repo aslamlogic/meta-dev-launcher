@@ -8,16 +8,14 @@ R = TypeVar("R")
 
 
 class Executor:
-    def __init__(self, max_workers: int | None = None) -> None:
-        self.max_workers = max_workers
-
-    def run_parallel(self, items: Iterable[T], fn: Callable[[T], R]) -> List[R]:
-        items_list = list(items)
-        if not items_list:
+    def run_parallel(self, items: Iterable[T], fn: Callable[[T], R], max_workers: int | None = None) -> List[R]:
+        items = list(items)
+        if not items:
             return []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            futures = [pool.submit(fn, item) for item in items_list]
-            results: List[R] = []
-            for future in as_completed(futures):
-                results.append(future.result())
-            return results
+        results: List[R] = [None] * len(items)  # type: ignore[list-item]
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            future_map = {pool.submit(fn, item): idx for idx, item in enumerate(items)}
+            for future in as_completed(future_map):
+                idx = future_map[future]
+                results[idx] = future.result()
+        return results

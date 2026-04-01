@@ -1,40 +1,38 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict, List
 
 from .app_builder import AppBuilder
 from .deployer import Deployer
-from .engine_builder import EngineBuilder
 from .executor import Executor
-from .spec_loader import SpecLoader
+from .spec_loader import AppSpec, SpecLoader
 
 
 class Orchestrator:
-    def __init__(self, app_specs_dir: str = "specs/apps/", apps_dir: str = "apps/", max_workers: int | None = None) -> None:
-        self.loader = SpecLoader(app_specs_dir=app_specs_dir)
-        self.engine_builder = EngineBuilder()
-        self.app_builder = AppBuilder(apps_dir=apps_dir)
-        self.deployer = Deployer(apps_dir=apps_dir)
-        self.executor = Executor(max_workers=max_workers)
+    def __init__(self, specs_dir: str | Path = "specs/apps", output_dir: str | Path = "apps"):
+        self.specs_dir = Path(specs_dir)
+        self.output_dir = Path(output_dir)
+        self.loader = SpecLoader(self.specs_dir)
+        self.builder = AppBuilder()
+        self.deployer = Deployer()
+        self.executor = Executor()
 
-    def run(self) -> Dict[str, Any]:
-        engine_result = self.engine_builder.build()
-        specs = self.loader.load()
+    def _process_one(self, spec: AppSpec) -> Dict[str, Any]:
+        app_dir = self.builder.build(spec.name, spec.build, output_dir=self.output_dir)
+        deploy_result = self.deployer.deploy(spec.name, spec.deploy, app_dir)
+        return {"spec": asdict(spec), "app_dir": str(app_dir), "deploy": deploy_result}
 
-        built = self.executor.run_parallel(specs, self.app_builder.build)
-        deployed = self.executor.run_parallel(specs, lambda spec: self.deployer.deploy(spec.name))
-
-        return {
-            "engine": engine_result,
-            "built_apps": built,
-            "deployed_apps": deployed,
-            "multi_app_support": True,
-            "parallel_execution": True,
-        }
+    def run(self, parallel: bool = True) -> List[Dict[str, Any]]:
+        specs = self.loader.load_all()
+        if parallel:
+            return self.executor.run_parallel(specs, self._process_one)
+        return [self._process_one(spec) for spec in specs]
 
 
 def main() -> None:
-    Orchestrator().run()
+    Orchestrator().run(parallel=True)
 
 
 if __name__ == "__main__":

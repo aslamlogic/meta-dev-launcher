@@ -6,25 +6,32 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppSpec:
     name: str
+    build: Dict[str, Any]
+    deploy: Dict[str, Any]
     raw: Dict[str, Any]
-    path: Path
 
 
 class SpecLoader:
-    def __init__(self, app_specs_dir: str = "specs/apps/") -> None:
-        self.app_specs_dir = Path(app_specs_dir)
+    def __init__(self, specs_dir: str | Path):
+        self.specs_dir = Path(specs_dir)
 
-    def load(self) -> List[AppSpec]:
-        if not self.app_specs_dir.exists():
+    def load_all(self) -> List[AppSpec]:
+        if not self.specs_dir.exists():
             return []
-
         specs: List[AppSpec] = []
-        for path in sorted(self.app_specs_dir.glob("*.json")):
+        for path in sorted(self.specs_dir.glob("*.json")):
             with path.open("r", encoding="utf-8") as f:
                 raw = json.load(f)
             name = raw.get("name") or path.stem
-            specs.append(AppSpec(name=name, raw=raw, path=path))
+            specs.append(
+                AppSpec(
+                    name=name,
+                    build=raw.get("build", {}),
+                    deploy=raw.get("deploy", {}),
+                    raw=raw,
+                )
+            )
         return specs

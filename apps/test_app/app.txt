@@ -1,1 +1,1 @@
-app built for test_app
+app test_app built
