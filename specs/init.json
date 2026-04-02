@@ -1,5 +1,14 @@
 {
   "api": {
-    "endpoints": []
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "request_schema": null,
+        "response_schema": {
+          "status": "string"
+        }
+      }
+    ]
   }
 }
