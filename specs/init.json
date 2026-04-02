@@ -6,7 +6,7 @@
         "path": "/health",
         "request_schema": null,
         "response_schema": {
-          "status": "string"
+          "status": "number"
         }
       }
     ]
