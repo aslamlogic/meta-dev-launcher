@@ -1,32 +1,75 @@
-# ONLY SHOWING THE CHANGED PART INSIDE validate_files()
+import os
+import json
+import requests
 
-def validate_files(payload: dict, spec: dict) -> None:
-    files = payload.get("files")
-    if not isinstance(files, list) or not files:
-        fail("Validation failed: no files returned")
 
-    by_path: dict[str, str] = {}
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    for item in files:
-        path = item.get("path")
-        content = item.get("content")
 
-        validate_path(path)
-        by_path[path] = normalise_content(content)
+def _generate_code(spec: dict) -> dict:
+    """
+    Calls OpenAI to generate code from spec.
+    Returns a dict of {filename: content}
+    """
 
-    main_py = by_path["main.py"]
-    requirements_txt = by_path["requirements.txt"].lower()
+    prompt = f"""
+    Generate a FastAPI application based on this spec:
 
-    endpoints = spec.get("api", {}).get("endpoints", [])
+    {json.dumps(spec, indent=2)}
 
-    for endpoint in endpoints:
-        method = str(endpoint.get("method", "")).lower()
-        path = endpoint.get("path")
+    Output JSON:
+    {{
+        "files": {{
+            "main.py": "...code..."
+        }}
+    }}
+    """
 
-        if not method or not path:
-            fail("Validation failed: endpoint missing method or path")
+    response = requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0
+        },
+    )
 
-        # FLEXIBLE MATCH (KEY FIX)
-        pattern = rf"@app\.{method}\s*\(\s*[\"']{path}[\"']"
-        if not re.search(pattern, main_py):
-            fail(f"Validation failed: endpoint missing {method.upper()} {path}")
+    data = response.json()
+
+    if "choices" not in data:
+        raise RuntimeError(f"OpenAI API error: {data}")
+
+    content = data["choices"][0]["message"]["content"]
+
+    try:
+        parsed = json.loads(content)
+    except Exception:
+        raise RuntimeError("Failed to parse model output as JSON")
+
+    return parsed.get("files", {})
+
+
+def _write_files(files: dict) -> None:
+    for path, content in files.items():
+        with open(path, "w") as f:
+            f.write(content)
+
+
+def build_system(spec: dict) -> None:
+    """
+    Deterministic interface used by controller.
+    """
+    print("BUILDING SYSTEM...")
+
+    files = _generate_code(spec)
+
+    _write_files(files)
+
+    print("BUILD COMPLETE")
