@@ -9,19 +9,13 @@ class EchoRequest(BaseModel):
 class EchoResponse(BaseModel):
     echo: str
 
-class HealthResponse(BaseModel):
-    status: str
-
-class RootResponse(BaseModel):
-    message: str
-
-@app.get("/", response_model=RootResponse)
+@app.get("/")
 async def root():
-    return RootResponse(message="Welcome to the meta-dev API!")
+    return {"message": "Welcome to the meta-dev API!"}
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health")
 async def health():
-    return HealthResponse(status="healthy")
+    return {"status": "healthy"}
 
 @app.post("/echo", response_model=EchoResponse)
 async def echo(request: EchoRequest):
