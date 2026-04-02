@@ -1,6 +1,10 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from copy import deepcopy
 import json
-import os
 
 from engine.bootstrap import build_system
 from iteration.evaluator import evaluate_system
