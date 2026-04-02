@@ -2,6 +2,8 @@ import os
 import json
 import requests
 import re
+import subprocess
+import time
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -9,11 +11,6 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 def _generate_code(spec: dict) -> dict:
-    """
-    Calls OpenAI to generate code from spec.
-    Returns a dict of {filename: content}
-    """
-
     prompt = f"""
 You must return ONLY valid JSON. No explanations. No markdown.
 
@@ -24,8 +21,9 @@ Schema:
   }}
 }}
 
-Generate a FastAPI application from this spec:
+Generate a FastAPI application with a /health endpoint returning {{ "status": "ok" }}.
 
+Spec:
 {json.dumps(spec, indent=2)}
 """
 
@@ -37,9 +35,7 @@ Generate a FastAPI application from this spec:
         },
         json={
             "model": OPENAI_MODEL,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0
         },
     )
@@ -51,14 +47,12 @@ Generate a FastAPI application from this spec:
 
     content = data["choices"][0]["message"]["content"].strip()
 
-    # ---- STRICT JSON PARSE ----
     try:
         parsed = json.loads(content)
         return parsed.get("files", {})
     except Exception:
         pass
 
-    # ---- RECOVERY: extract JSON block ----
     match = re.search(r'\{.*\}', content, re.DOTALL)
     if match:
         try:
@@ -67,7 +61,6 @@ Generate a FastAPI application from this spec:
         except Exception:
             pass
 
-    # ---- HARD FAIL ----
     raise RuntimeError(f"Invalid JSON from model:\n{content}")
 
 
@@ -77,10 +70,21 @@ def _write_files(files: dict) -> None:
             f.write(content)
 
 
+def _start_server():
+    print("STARTING SERVER...")
+
+    process = subprocess.Popen(
+        ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    time.sleep(3)  # allow server to start
+
+    return process
+
+
 def build_system(spec: dict) -> None:
-    """
-    Deterministic interface used by controller.
-    """
     print("BUILDING SYSTEM...")
 
     files = _generate_code(spec)
@@ -88,3 +92,5 @@ def build_system(spec: dict) -> None:
     _write_files(files)
 
     print("BUILD COMPLETE")
+
+    _start_server()
