@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -20,11 +20,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 3. Install dependencies (safe even if empty)
+      # 3. Install dependencies
       - name: Install dependencies
         run: |
           pip install fastapi uvicorn
 
-      # 4. Run controller (THIS IS THE FIX)
+      # 4. Debug + Fix Python Path + Run Controller
       - name: Run controller
-        run: python -m iteration.controller
+        run: |
+          echo "=== WORKING DIRECTORY ==="
+          pwd
+
+          echo "=== FILE STRUCTURE ==="
+          ls -R
+
+          echo "=== SET PYTHONPATH ==="
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+
+          echo "=== RUN CONTROLLER ==="
+          python -m iteration.controller
