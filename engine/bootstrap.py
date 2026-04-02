@@ -64,28 +64,25 @@ def build_messages(spec_path, spec):
             "content": (
                 "You are a deterministic FastAPI generator.\n"
                 "Return ONLY JSON matching the schema.\n"
-                "No markdown. No commentary.\n"
-                "\n"
+                "No markdown. No commentary.\n\n"
                 "Requirements:\n"
                 "- Build a FastAPI app\n"
-                "- Use api.endpoints from spec\n"
-                "- Each endpoint must exist\n"
-                "- Responses must use schema.example values\n"
-                "- Output complete runnable files\n"
+                "- Implement ALL endpoints from api.endpoints\n"
+                "- Support GET and POST methods\n"
+                "- For POST endpoints: accept JSON body input\n"
+                "- Map request schema fields to response schema fields\n"
+                "- Use schema.example values for outputs\n"
+                "- Output complete working files\n"
             ),
         },
         {
             "role": "user",
             "content": (
                 f"Specification:\n{json.dumps(spec, indent=2)}\n\n"
-                "Generate:\n"
-                "- main.py\n"
-                "- requirements.txt\n"
-                "\n"
-                "Rules:\n"
-                "- Use FastAPI\n"
-                "- Implement all endpoints\n"
-                "- Return JSON responses based on schema\n"
+                "Instructions:\n"
+                "- GET endpoints return static JSON\n"
+                "- POST endpoints accept request body and return mapped response\n"
+                "- Output main.py and requirements.txt\n"
             ),
         },
     ]
@@ -145,6 +142,12 @@ def validate_files(payload):
     if not isinstance(files, list) or not files:
         fail("Validation failed: no files returned")
 
+    requires_post = False
+    # detect if spec contains POST
+    spec_text = json.dumps(payload)
+    if "POST" in spec_text:
+        requires_post = True
+
     for item in files:
         path = item.get("path")
         content = item.get("content")
@@ -169,7 +172,10 @@ def validate_files(payload):
                 fail(f"Validation failed: app instance missing in {path}")
 
             if "@app.get" not in content:
-                fail(f"Validation failed: no endpoints in {path}")
+                fail(f"Validation failed: no GET endpoints in {path}")
+
+            if requires_post and "@app.post" not in content:
+                fail(f"Validation failed: POST endpoint missing in {path}")
 
 
 def validate_path(path_str: str) -> Path:
