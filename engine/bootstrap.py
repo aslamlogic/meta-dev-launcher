@@ -4,7 +4,6 @@ import re
 import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
 
 import requests
 
@@ -29,35 +28,20 @@ SUPPORTED_TASKS = {
     "add_post_echo": "Add typed POST /echo endpoint",
 }
 
-PLANNER_SCHEMA = {
-    "name": "task_plan",
-    "strict": True,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "tasks": {
-                "type": "array",
-                "items": {
-                    "type": "string",
-                    "enum": list(SUPPORTED_TASKS.keys()),
-                },
-            }
-        },
-        "required": ["tasks"],
-    },
-}
-
+# ✅ FIXED SCHEMA (CRITICAL)
 OUTPUT_SCHEMA = {
     "name": "generated_files",
     "strict": True,
     "schema": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
             "files": {
                 "type": "array",
                 "minItems": 2,
                 "items": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "path": {"type": "string"},
                         "content": {"type": "string"},
@@ -98,7 +82,7 @@ def save_spec(path, spec):
     path.write_text(json.dumps(spec, indent=2))
 
 
-# ---------------- TASK LOGIC ---------------- #
+# ---------------- TASKS ---------------- #
 
 def to_contract(spec):
     if "api" in spec:
@@ -174,8 +158,7 @@ def build_messages(spec):
             "content": (
                 "You MUST output EXACTLY two files:\n"
                 "main.py and requirements.txt\n\n"
-                "No markdown. No explanation.\n"
-                "Return valid JSON only.\n\n"
+                "NO markdown. NO explanation. JSON ONLY.\n\n"
                 "requirements.txt MUST contain:\n"
                 "fastapi\nuvicorn\npydantic\n"
             ),
@@ -248,7 +231,7 @@ def write_files(payload):
         print(f"WROTE {path}")
 
 
-# ---------------- MAIN LOOP ---------------- #
+# ---------------- MAIN ---------------- #
 
 def main():
     spec_path, spec = read_spec()
