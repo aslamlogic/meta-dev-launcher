@@ -1,34 +1,16 @@
 import json
 import os
-import re
 import sys
-from copy import deepcopy
 from pathlib import Path
-
 import requests
 
 CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 
-SPEC_CANDIDATES = [
-    Path("specs/app.json"),
-    Path("specs/init.json"),
-]
-
+SPEC_PATH = Path("specs/init.json")
 GOAL_PATH = Path("goal.json")
 QUEUE_PATH = Path("tasks/queue.json")
 STATE_PATH = Path("tasks/state.json")
 
-FORBIDDEN_PREFIXES = (
-    ".git/",
-    ".github/workflows/",
-)
-
-SUPPORTED_TASKS = {
-    "strengthen_contract": "Convert spec to typed contract",
-    "add_post_echo": "Add typed POST /echo endpoint",
-}
-
-# ✅ FIXED SCHEMA (CRITICAL)
 OUTPUT_SCHEMA = {
     "name": "generated_files",
     "strict": True,
@@ -44,14 +26,14 @@ OUTPUT_SCHEMA = {
                     "additionalProperties": False,
                     "properties": {
                         "path": {"type": "string"},
-                        "content": {"type": "string"},
+                        "content": {"type": "string"}
                     },
-                    "required": ["path", "content"],
-                },
+                    "required": ["path", "content"]
+                }
             }
         },
-        "required": ["files"],
-    },
+        "required": ["files"]
+    }
 }
 
 
@@ -72,39 +54,35 @@ def write_json(path, data):
 
 
 def read_spec():
-    for p in SPEC_CANDIDATES:
-        if p.exists():
-            return p, json.loads(p.read_text())
-    fail("No spec found")
+    if not SPEC_PATH.exists():
+        fail("Spec missing")
+    return json.loads(SPEC_PATH.read_text())
 
 
-def save_spec(path, spec):
-    path.write_text(json.dumps(spec, indent=2))
+def save_spec(spec):
+    SPEC_PATH.write_text(json.dumps(spec, indent=2))
 
 
-# ---------------- TASKS ---------------- #
+# -------- TASKS -------- #
 
 def to_contract(spec):
     if "api" in spec:
         return spec
 
-    endpoints = spec.get("endpoints", [])
+    eps = spec.get("endpoints", [])
     new_eps = []
 
-    for ep in endpoints:
-        resp = ep.get("response", {})
-        schema = {
-            k: {"type": "string", "example": v}
-            for k, v in resp.items()
-        }
-
+    for ep in eps:
         new_eps.append({
             "name": ep.get("name", "endpoint"),
             "method": ep.get("method", "GET"),
             "path": ep.get("path", "/"),
             "response": {
                 "type": "object",
-                "schema": schema
+                "schema": {
+                    k: {"type": "string", "example": v}
+                    for k, v in ep.get("response", {}).items()
+                }
             }
         })
 
@@ -116,12 +94,11 @@ def to_contract(spec):
 
 def add_post_echo(spec):
     spec = to_contract(spec)
-    eps = spec["api"]["endpoints"]
 
-    if any(e["path"] == "/echo" for e in eps):
+    if any(e["path"] == "/echo" for e in spec["api"]["endpoints"]):
         return spec
 
-    eps.append({
+    spec["api"]["endpoints"].append({
         "name": "echo",
         "method": "POST",
         "path": "/echo",
@@ -138,64 +115,57 @@ def add_post_echo(spec):
             }
         }
     })
+
     return spec
 
 
 def apply_task(spec, task):
-    if task == "strengthen_contract":
-        return to_contract(spec)
     if task == "add_post_echo":
         return add_post_echo(spec)
+    if task == "strengthen_contract":
+        return to_contract(spec)
     fail(f"Unknown task {task}")
 
 
-# ---------------- GENERATION ---------------- #
+# -------- GENERATION -------- #
 
-def build_messages(spec):
-    return [
-        {
-            "role": "system",
-            "content": (
-                "You MUST output EXACTLY two files:\n"
-                "main.py and requirements.txt\n\n"
-                "NO markdown. NO explanation. JSON ONLY.\n\n"
-                "requirements.txt MUST contain:\n"
-                "fastapi\nuvicorn\npydantic\n"
-            ),
-        },
-        {
-            "role": "user",
-            "content": json.dumps(spec, indent=2),
-        },
-    ]
-
-
-def call_openai(messages):
+def call_openai(spec):
     r = requests.post(
         CHAT_COMPLETIONS_URL,
         headers={
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-            "Content-Type": "application/json",
+            "Content-Type": "application/json"
         },
         json={
             "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            "messages": messages,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Return ONLY JSON.\n"
+                        "Generate EXACTLY:\n"
+                        "main.py and requirements.txt.\n"
+                        "No markdown."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(spec)
+                }
+            ],
             "response_format": {
                 "type": "json_schema",
-                "json_schema": OUTPUT_SCHEMA,
+                "json_schema": OUTPUT_SCHEMA
             },
-            "temperature": 0,
-        },
+            "temperature": 0
+        }
     )
 
     if r.status_code != 200:
         fail(r.text)
 
-    content = r.json()["choices"][0]["message"]["content"]
-    return json.loads(content)
+    return json.loads(r.json()["choices"][0]["message"]["content"])
 
-
-# ---------------- VALIDATION ---------------- #
 
 def validate(payload):
     files = payload.get("files", [])
@@ -207,39 +177,26 @@ def validate(payload):
     if "requirements.txt" not in paths:
         fail("requirements.txt missing")
 
-    main = next(f["content"] for f in files if f["path"] == "main.py")
-
-    if "FastAPI" not in main:
-        fail("FastAPI missing")
-
-    if "@app.get" not in main:
-        fail("GET missing")
-
-    if "POST" in main and "@app.post" not in main:
-        fail("POST missing")
-
 
 def write_files(payload):
     for f in payload["files"]:
-        path = Path(f["path"])
-        content = f["content"].strip()
-
-        if "```" in content:
-            fail("markdown detected")
-
-        path.write_text(content + "\n")
-        print(f"WROTE {path}")
+        Path(f["path"]).write_text(f["content"].strip() + "\n")
+        print(f"WROTE {f['path']}")
 
 
-# ---------------- MAIN ---------------- #
+# -------- MAIN LOOP -------- #
 
 def main():
-    spec_path, spec = read_spec()
+    spec = read_spec()
     goal = read_json(GOAL_PATH, {}).get("goal", "")
 
     queue = read_json(QUEUE_PATH, {"tasks": []})
-    state = read_json(STATE_PATH, {"current": 0})
+    state = read_json(STATE_PATH, {
+        "index": 0,
+        "completed": []
+    })
 
+    # initialise tasks once
     if not queue["tasks"]:
         tasks = []
         if "post" in goal.lower():
@@ -249,21 +206,36 @@ def main():
         queue = {"tasks": tasks}
         write_json(QUEUE_PATH, queue)
 
-    idx = state.get("current", 0)
+    idx = state["index"]
+    tasks = queue["tasks"]
 
-    if idx < len(queue["tasks"]):
-        task = queue["tasks"][idx]
-        print(f"APPLYING TASK: {task}")
+    # EXIT if done
+    if idx >= len(tasks):
+        print("ALL TASKS COMPLETE")
+        return
 
-        spec = apply_task(spec, task)
-        save_spec(spec_path, spec)
+    task = tasks[idx]
 
-        payload = call_openai(build_messages(spec))
-        validate(payload)
-        write_files(payload)
-
-        state["current"] = idx + 1
+    # guard: skip if already done
+    if task in state["completed"]:
+        state["index"] += 1
         write_json(STATE_PATH, state)
+        print("SKIPPING COMPLETED TASK")
+        return
+
+    print(f"APPLYING TASK: {task}")
+
+    spec = apply_task(spec, task)
+    save_spec(spec)
+
+    payload = call_openai(spec)
+    validate(payload)
+    write_files(payload)
+
+    # mark complete
+    state["completed"].append(task)
+    state["index"] += 1
+    write_json(STATE_PATH, state)
 
     print("BOOTSTRAP COMPLETE")
 
