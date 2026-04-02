@@ -63,13 +63,20 @@ def build_messages(spec_path: Path, spec: dict) -> list[dict]:
         {
             "role": "system",
             "content": (
-                "You are a deterministic software generator. "
-                "Return ONLY valid JSON matching the schema. "
-                "No markdown. No commentary. No prose. "
-                "Generate full files only. "
-                "Allowed outputs: main.py and requirements.txt only. "
-                "Implement the full API defined in the specification. "
-                "Use FastAPI and Pydantic where needed."
+                "You are a deterministic software generator.\n"
+                "Return ONLY valid JSON matching the schema.\n"
+                "No markdown. No commentary. No prose.\n"
+                "Generate full files only.\n"
+                "Allowed outputs: main.py and requirements.txt only.\n"
+                "Use FastAPI and Pydantic.\n"
+                "STRICT RULES:\n"
+                "- You MUST implement ALL endpoints defined in api.endpoints\n"
+                "- For EACH endpoint:\n"
+                "  • Use EXACT decorator format: @app.<method>(\"<path>\")\n"
+                "  • Method must match exactly (get, post, etc.)\n"
+                "  • Path must match exactly\n"
+                "- If ANY endpoint is missing, output is INVALID\n"
+                "- DO NOT omit endpoints\n"
             ),
         },
         {
@@ -81,10 +88,10 @@ def build_messages(spec_path: Path, spec: dict) -> list[dict]:
                 "1. Generate a complete runnable FastAPI application.\n"
                 "2. Main application file must be main.py.\n"
                 "3. requirements.txt must include all necessary packages.\n"
-                "4. Implement endpoints exactly as defined in api.endpoints.\n"
-                "5. For GET endpoints, return valid JSON matching the response schema.\n"
-                "6. For POST endpoints, create request/response models where needed.\n"
-                "7. No extra files."
+                "4. Implement endpoints EXACTLY as defined.\n"
+                "5. GET endpoints return valid JSON.\n"
+                "6. POST endpoints must use Pydantic BaseModel.\n"
+                "7. No extra files.\n"
             ),
         },
     ]
