@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import re
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -14,17 +15,19 @@ def _generate_code(spec: dict) -> dict:
     """
 
     prompt = f"""
-    Generate a FastAPI application based on this spec:
+You must return ONLY valid JSON. No explanations. No markdown.
 
-    {json.dumps(spec, indent=2)}
+Schema:
+{{
+  "files": {{
+    "main.py": "string"
+  }}
+}}
 
-    Output JSON:
-    {{
-        "files": {{
-            "main.py": "...code..."
-        }}
-    }}
-    """
+Generate a FastAPI application from this spec:
+
+{json.dumps(spec, indent=2)}
+"""
 
     response = requests.post(
         "https://api.openai.com/v1/chat/completions",
@@ -46,14 +49,26 @@ def _generate_code(spec: dict) -> dict:
     if "choices" not in data:
         raise RuntimeError(f"OpenAI API error: {data}")
 
-    content = data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"].strip()
 
+    # ---- STRICT JSON PARSE ----
     try:
         parsed = json.loads(content)
+        return parsed.get("files", {})
     except Exception:
-        raise RuntimeError("Failed to parse model output as JSON")
+        pass
 
-    return parsed.get("files", {})
+    # ---- RECOVERY: extract JSON block ----
+    match = re.search(r'\{.*\}', content, re.DOTALL)
+    if match:
+        try:
+            parsed = json.loads(match.group(0))
+            return parsed.get("files", {})
+        except Exception:
+            pass
+
+    # ---- HARD FAIL ----
+    raise RuntimeError(f"Invalid JSON from model:\n{content}")
 
 
 def _write_files(files: dict) -> None:
