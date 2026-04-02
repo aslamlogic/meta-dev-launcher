@@ -13,6 +13,7 @@ from iteration.spec_updater import update_spec
 
 SPEC_PATH = "specs/init.json"
 MAX_ITERATIONS = 5
+BASE_URL = "http://localhost:8000"
 
 
 def _load_spec() -> dict:
@@ -37,7 +38,7 @@ def run_controller() -> dict:
         build_system(spec)
 
         # 2. Evaluate
-        evaluation = evaluate_system()
+        evaluation = evaluate_system(spec, BASE_URL)
         print("EVALUATION RESULT:", evaluation)
 
         # 3. Success check
