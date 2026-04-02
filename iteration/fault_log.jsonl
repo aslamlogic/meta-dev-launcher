@@ -1,0 +1,2 @@
+{"timestamp": "2026-04-02T22:01:44.253041", "failure_type": "endpoint_failure", "endpoint": "GET /health", "spec_snapshot": {"api": {"endpoints": [{"method": "GET", "path": "/health", "request_schema": null, "response_schema": {"status": "number"}}]}}}
+{"timestamp": "2026-04-02T22:01:44.253041", "failure_type": "schema_mismatch", "method": "GET", "path": "/health", "expected": {"status": "number"}, "actual": {"status": "ok"}, "spec_snapshot": {"api": {"endpoints": [{"method": "GET", "path": "/health", "request_schema": null, "response_schema": {"status": "number"}}]}}}
