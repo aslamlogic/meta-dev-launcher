@@ -1,4 +1,6 @@
 {
-  "index": 0,
-  "completed": []
+  "index": 1,
+  "completed": [
+    "add_post_echo"
+  ]
 }
