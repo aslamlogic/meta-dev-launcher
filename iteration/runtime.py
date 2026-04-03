@@ -6,7 +6,7 @@ import random
 
 def start_server():
     """
-    Starts FastAPI server on a dynamic port to avoid collisions.
+    Starts FastAPI server on dynamic port with robust readiness check.
     """
 
     logs = []
@@ -27,11 +27,12 @@ def start_server():
         stderr=subprocess.DEVNULL,
     )
 
-    # Wait for readiness
-    for _ in range(10):
+    # EXTENDED readiness window
+    for _ in range(20):  # was 10
         try:
             r = requests.get(f"{base_url}/health", timeout=2)
             if r.status_code == 200:
+                time.sleep(1)  # buffer for stability
                 logs.append(f"Server started on port {port}")
                 return {
                     "status": "running",
