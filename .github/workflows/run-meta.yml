@@ -27,16 +27,15 @@ jobs:
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${PYTHONPATH}:$(pwd)" >> $GITHUB_ENV
 
-      - name: Run Meta Controller (safe)
+      - name: Run Meta Controller (non-fatal)
         shell: bash
+        continue-on-error: true
         run: |
-          set +e
-
           for i in 1 2; do
             echo "=== RUN $i ==="
-            python -u iteration/controller.py
+            python -u iteration/controller.py || true
             sleep 5
           done
 
-          echo "=== DONE ==="
-          exit 0
+      - name: Force Success
+        run: exit 0
