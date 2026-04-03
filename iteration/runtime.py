@@ -1,8 +1,6 @@
 import subprocess
 import time
 import requests
-import os
-import signal
 
 
 _current_process = None
@@ -10,20 +8,21 @@ _current_process = None
 
 def start_server():
     """
-    Starts FastAPI server with proper cleanup and readiness check.
+    Starts FastAPI server safely and ensures readiness.
+    Compatible with GitHub Actions.
     """
 
     global _current_process
-
     logs = []
 
-    # Kill previous process if exists
+    # Stop previous process safely
     if _current_process:
         try:
-            os.kill(_current_process.pid, signal.SIGTERM)
-            logs.append("Previous server stopped")
+            _current_process.terminate()
+            _current_process.wait(timeout=3)
+            logs.append("Previous server terminated")
         except Exception:
-            logs.append("No previous server to stop")
+            logs.append("Previous server termination skipped")
 
     process = subprocess.Popen(
         [
@@ -34,8 +33,8 @@ def start_server():
             "--port",
             "8000",
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     _current_process = process
@@ -54,7 +53,12 @@ def start_server():
         except Exception:
             time.sleep(1)
 
-    process.kill()
+    # Cleanup if failed
+    try:
+        process.terminate()
+    except Exception:
+        pass
+
     logs.append("Server failed to start")
 
     return {
