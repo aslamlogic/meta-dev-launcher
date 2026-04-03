@@ -22,25 +22,7 @@ jobs:
         run: |
           pip install fastapi uvicorn
 
-      - name: Inspect and run controller
+      - name: Run controller
         run: |
-          echo "=== WORKING DIRECTORY ==="
-          pwd
-
-          echo "=== TOP LEVEL FILES ==="
-          ls
-
-          echo "=== ITERATION DIR ==="
-          ls iteration
-
-          echo "=== CONTROLLER FILE ==="
-          cat iteration/controller.py
-
-          echo "=== SPEC FILE ==="
-          cat specs/init.json || true
-
-          echo "=== SET PYTHONPATH ==="
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-
-          echo "=== RUN CONTROLLER ==="
           python -u iteration/controller.py
