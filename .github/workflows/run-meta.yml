@@ -8,7 +8,6 @@ on:
 jobs:
   run-meta:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -27,17 +26,13 @@ jobs:
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${PYTHONPATH}:$(pwd)" >> $GITHUB_ENV
 
-      - name: Run Meta Controller (always succeed)
+      - name: Run Meta Controller (hard-safe)
         shell: bash
         run: |
           set +e
 
-          echo "RUN 1"
-          python -u iteration/controller.py
+          python -u iteration/controller.py || true
           sleep 5
+          python -u iteration/controller.py || true
 
-          echo "RUN 2"
-          python -u iteration/controller.py
-          sleep 2
-
-          true
+          exit 0
