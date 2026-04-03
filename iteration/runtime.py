@@ -1,28 +1,18 @@
 import subprocess
 import time
 import requests
-
-
-_current_process = None
+import random
 
 
 def start_server():
     """
-    Starts FastAPI server safely and ensures readiness.
-    Compatible with GitHub Actions.
+    Starts FastAPI server on a dynamic port to avoid collisions.
     """
 
-    global _current_process
     logs = []
 
-    # Stop previous process safely
-    if _current_process:
-        try:
-            _current_process.terminate()
-            _current_process.wait(timeout=3)
-            logs.append("Previous server terminated")
-        except Exception:
-            logs.append("Previous server termination skipped")
+    port = random.randint(8000, 9000)
+    base_url = f"http://localhost:{port}"
 
     process = subprocess.Popen(
         [
@@ -31,33 +21,26 @@ def start_server():
             "--host",
             "0.0.0.0",
             "--port",
-            "8000",
+            str(port),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
-    _current_process = process
-
     # Wait for readiness
     for _ in range(10):
         try:
-            r = requests.get("http://localhost:8000/health", timeout=2)
+            r = requests.get(f"{base_url}/health", timeout=2)
             if r.status_code == 200:
-                logs.append("Server started successfully")
+                logs.append(f"Server started on port {port}")
                 return {
                     "status": "running",
+                    "base_url": base_url,
                     "process_id": process.pid,
                     "logs": logs,
                 }
         except Exception:
             time.sleep(1)
-
-    # Cleanup if failed
-    try:
-        process.terminate()
-    except Exception:
-        pass
 
     logs.append("Server failed to start")
 
