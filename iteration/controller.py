@@ -10,18 +10,30 @@ from iteration.spec_updater import update_spec
 
 ROOT = Path(__file__).resolve().parent.parent
 SPECS_DIR = ROOT / "specs"
-SPECS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_spec():
-    spec_path = SPECS_DIR / "init.json"
-    if not spec_path.exists():
+    try:
+        spec_path = SPECS_DIR / "init.json"
+        print(f"=== LOADING SPEC FROM: {spec_path}", flush=True)
+
+        if not spec_path.exists():
+            print("=== SPEC FILE NOT FOUND — USING EMPTY SPEC ===", flush=True)
+            return {}
+
+        content = spec_path.read_text()
+        print(f"=== RAW SPEC CONTENT === {content}", flush=True)
+
+        return json.loads(content)
+
+    except Exception as e:
+        print(f"=== ERROR LOADING SPEC: {e} ===", flush=True)
         return {}
-    return json.loads(spec_path.read_text())
 
 
 def run_iteration_loop(spec: dict, max_iterations: int = 3):
     print("=== CONTROLLER STARTED ===", flush=True)
+    print(f"=== INPUT SPEC === {spec}", flush=True)
 
     build_id = f"build_{uuid.uuid4().hex[:8]}"
     working_spec = spec
@@ -29,12 +41,6 @@ def run_iteration_loop(spec: dict, max_iterations: int = 3):
 
     for iteration in range(1, max_iterations + 1):
         print(f"=== ITERATION {iteration} START ===", flush=True)
-        all_logs.append(f"=== ITERATION {iteration} START ===")
-
-        spec_path = SPECS_DIR / "init.json"
-        spec_path.write_text(json.dumps(working_spec, indent=2))
-        print(f"SPEC WRITTEN: {spec_path}", flush=True)
-        all_logs.append(f"SPEC WRITTEN: {spec_path}")
 
         # BUILD
         build = build_system(working_spec)
@@ -49,70 +55,39 @@ def run_iteration_loop(spec: dict, max_iterations: int = 3):
         # EVALUATION
         evaluation = evaluate_system(working_spec)
         print(f"=== EVALUATION RESULT === {evaluation}", flush=True)
-        all_logs.append(f"EVALUATION: {evaluation}")
 
-        # SUCCESS
         if evaluation.get("status") == "success":
-            print(f"=== ITERATION {iteration} SUCCESS ===", flush=True)
-            all_logs.append(f"=== ITERATION {iteration} SUCCESS ===")
-
-            result = {
+            print("=== SUCCESS ===", flush=True)
+            return {
                 "build_id": build_id,
-                "message": "Build converged successfully",
-                "deployment_url": evaluation.get("base_url", "http://localhost:8000"),
-                "logs": all_logs,
-                "evaluation": evaluation,
                 "success": True,
-                "iterations_used": iteration,
-                "normalized_spec": working_spec,
+                "evaluation": evaluation,
+                "logs": all_logs,
             }
-
-            print(f"=== FINAL RESULT === {result}", flush=True)
-            return result
 
         # UPDATE SPEC
-        print(f"=== ITERATION {iteration} FAILED - UPDATING SPEC ===", flush=True)
-        all_logs.append(f"=== ITERATION {iteration} FAILED - UPDATING SPEC ===")
+        updated = update_spec(working_spec, evaluation)
 
-        updated_spec = update_spec(working_spec, evaluation)
-
-        if updated_spec == working_spec:
-            print("=== SPEC UPDATER MADE NO CHANGES ===", flush=True)
-            all_logs.append("=== SPEC UPDATER MADE NO CHANGES ===")
-
-            result = {
+        if updated == working_spec:
+            print("=== NO SPEC CHANGE — STOPPING ===", flush=True)
+            return {
                 "build_id": build_id,
-                "message": "Build failed and no corrective update was available",
-                "deployment_url": evaluation.get("base_url", "http://localhost:8000"),
-                "logs": all_logs,
-                "evaluation": evaluation,
                 "success": False,
-                "iterations_used": iteration,
-                "normalized_spec": working_spec,
+                "evaluation": evaluation,
+                "logs": all_logs,
             }
 
-            print(f"=== FINAL RESULT === {result}", flush=True)
-            return result
-
-        working_spec = updated_spec
+        working_spec = updated
         print(f"=== UPDATED SPEC === {working_spec}", flush=True)
-        all_logs.append(f"UPDATED SPEC: {working_spec}")
 
-    result = {
+    return {
         "build_id": build_id,
-        "message": "Build stopped at max iteration limit",
-        "deployment_url": "http://localhost:8000",
-        "logs": all_logs,
-        "evaluation": evaluation,
         "success": False,
-        "iterations_used": max_iterations,
-        "normalized_spec": working_spec,
+        "evaluation": evaluation,
+        "logs": all_logs,
     }
 
-    print(f"=== FINAL RESULT === {result}", flush=True)
-    return result
 
-
-# ✅ ENTRY POINT — LOAD REAL SPEC
+# FORCE EXECUTION WITH DEBUG
 spec = load_spec()
 run_iteration_loop(spec)
