@@ -10,29 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: |
           pip install fastapi uvicorn
 
-      # 4. Run controller (DIRECT EXECUTION — FIXED)
-      - name: Run controller
+      - name: Inspect and run controller
         run: |
           echo "=== WORKING DIRECTORY ==="
           pwd
 
           echo "=== FILE STRUCTURE ==="
           ls -R
+
+          echo "=== CONTROLLER FILE ==="
+          cat iteration/controller.py
+
+          echo "=== SPEC FILE ==="
+          cat specs/init.json || true
 
           echo "=== SET PYTHONPATH ==="
           export PYTHONPATH=$PYTHONPATH:$(pwd)
