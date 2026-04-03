@@ -1,14 +1,12 @@
 {
-  "api": {
-    "endpoints": [
-      {
-        "method": "GET",
-        "path": "/health",
-        "request_schema": null,
-        "response_schema": {
-          "status": "ok"
-        }
+  "name": "health_api",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "response": {
+        "status": "number"
       }
-    ]
-  }
+    }
+  ]
 }
