@@ -25,7 +25,7 @@ jobs:
         run: |
           pip install fastapi uvicorn
 
-      # 4. Run controller (UNBUFFERED + DEBUG)
+      # 4. Run controller (DIRECT EXECUTION — FIXED)
       - name: Run controller
         run: |
           echo "=== WORKING DIRECTORY ==="
@@ -38,4 +38,4 @@ jobs:
           export PYTHONPATH=$PYTHONPATH:$(pwd)
 
           echo "=== RUN CONTROLLER ==="
-          python -u -m iteration.controller
+          python -u iteration/controller.py
