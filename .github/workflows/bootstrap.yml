@@ -27,8 +27,11 @@ jobs:
           echo "=== WORKING DIRECTORY ==="
           pwd
 
-          echo "=== FILE STRUCTURE ==="
-          ls -R
+          echo "=== TOP LEVEL FILES ==="
+          ls
+
+          echo "=== ITERATION DIR ==="
+          ls iteration
 
           echo "=== CONTROLLER FILE ==="
           cat iteration/controller.py
