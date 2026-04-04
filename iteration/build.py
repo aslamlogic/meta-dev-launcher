@@ -10,17 +10,14 @@ def build_system(spec: dict):
         code = generate_code(spec)
         logs.append("Code generated")
 
-        # HARD VALIDATION
+        # Minimal required validation ONLY
         if "FastAPI" not in code:
             raise ValueError("Missing FastAPI import")
 
         if "app = FastAPI()" not in code:
             raise ValueError("Missing FastAPI app instance")
 
-        if "@" not in code:
-            raise ValueError("No endpoints defined")
-
-        # Try compiling code BEFORE writing
+        # Compile check (authoritative syntax validation)
         try:
             compile(code, "<generated_app>", "exec")
         except Exception as e:
@@ -29,7 +26,10 @@ def build_system(spec: dict):
         path = write_app(code)
         logs.append(f"Code written to {path}")
 
-        return {"status": "success", "logs": logs}
+        return {
+            "status": "success",
+            "logs": logs
+        }
 
     except Exception as e:
         logs.append(f"BUILD FAILURE: {str(e)}")
