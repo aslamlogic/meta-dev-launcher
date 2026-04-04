@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meta Dev Launcher</title>
+</head>
+<body>
+  <h1>Meta Dev Launcher</h1>
+
+  <p id="status">Checking...</p>
+
+  <select id="repo">
+    <option value="evidentia-app">evidentia-app</option>
+    <option value="paios-core">paios-core</option>
+    <option value="meta-dev-launcher">meta-dev-launcher</option>
+  </select>
+
+  <button onclick="runSystem()">Run Deployment</button>
+
+  <pre id="output"></pre>
+
+<script>
+async function checkHealth() {
+  const res = await fetch('/health');
+  const data = await res.json();
+  document.getElementById('status').innerText =
+    data.status === "ok" ? "Online" : "Offline";
+}
+
+async function runSystem() {
+  const repo = document.getElementById('repo').value;
+
+  const res = await fetch('/run', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ repo })
+  });
+
+  const data = await res.json();
+
+  document.getElementById('output').innerText =
+    JSON.stringify(data, null, 2);
+}
+
+checkHealth();
+</script>
+
+</body>
+</html>
