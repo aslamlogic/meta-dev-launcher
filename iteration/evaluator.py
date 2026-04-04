@@ -1,8 +1,7 @@
 import importlib
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, List
 from fastapi.testclient import TestClient
-
 from iteration.schema_validator import validate_json_schema
 
 
@@ -11,11 +10,11 @@ def _reload_generated_app():
     modules_to_delete = [m for m in sys.modules if m.startswith("generated_app")]
     for m in modules_to_delete:
         del sys.modules[m]
-
+    
     # Fresh import
     import generated_app.main
     importlib.reload(generated_app.main)
-
+    
     from generated_app.main import app
     return app
 
