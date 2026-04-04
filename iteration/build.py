@@ -6,42 +6,27 @@ from engine.file_writer import write_app
 def build_system(spec: dict):
     logs = []
 
-    # STEP 1 — LLM call (this is where you are failing)
     try:
+        logs.append("Starting build")
+
         code = generate_code(spec)
-        logs.append("LLM call succeeded")
-    except Exception as e:
-        return {
-            "status": "failure",
-            "logs": [
-                "LLM FAILURE",
-                str(e),
-                traceback.format_exc()
-            ]
-        }
+        logs.append("Code generated")
 
-    # STEP 2 — basic sanity
-    if not code:
-        return {
-            "status": "failure",
-            "logs": ["EMPTY CODE RETURNED FROM LLM"]
-        }
-
-    # STEP 3 — write (no validation yet)
-    try:
         path = write_app(code)
         logs.append(f"Code written to {path}")
-    except Exception as e:
+
         return {
-            "status": "failure",
-            "logs": [
-                "FILE WRITE FAILURE",
-                str(e),
-                traceback.format_exc()
-            ]
+            "status": "success",
+            "logs": logs
         }
 
-    return {
-        "status": "success",
-        "logs": logs
-    }
+    except Exception as e:
+        error_trace = traceback.format_exc()
+
+        logs.append(f"BUILD FAILED: {str(e)}")
+        logs.append(error_trace)
+
+        return {
+            "status": "failure",
+            "logs": logs
+        }
