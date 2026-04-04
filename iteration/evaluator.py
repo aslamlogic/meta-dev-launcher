@@ -1,21 +1,31 @@
 import importlib
 import sys
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict
 from fastapi.testclient import TestClient
+
 from iteration.schema_validator import validate_json_schema
 
 
 def _reload_generated_app():
-    # Remove ALL cached modules under generated_app
+    # Ensure file exists BEFORE import
+    if not os.path.exists("generated_app/main.py"):
+        raise RuntimeError("generated_app/main.py missing")
+
+    # Clear cache
     modules_to_delete = [m for m in sys.modules if m.startswith("generated_app")]
     for m in modules_to_delete:
         del sys.modules[m]
-    
-    # Fresh import
+
     import generated_app.main
     importlib.reload(generated_app.main)
-    
+
     from generated_app.main import app
+
+    # Validate app exists
+    if app is None:
+        raise RuntimeError("FastAPI app not found")
+
     return app
 
 
@@ -31,9 +41,9 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         return {
             "status": "failure",
-            "logs": [str(e)],
+            "logs": [f"LOAD_ERROR: {str(e)}"],
             "failing_endpoints": [],
-            "schema_mismatches": [{"issue": "import_failed", "details": str(e)}],
+            "schema_mismatches": [{"issue": "import_failed"}],
         }
 
     for ep in spec.get("endpoints", []):
@@ -42,16 +52,7 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
         expected = ep.get("expected_response", {})
 
         try:
-            if method == "GET":
-                r = client.get(path)
-            elif method == "POST":
-                r = client.post(path)
-            elif method == "PUT":
-                r = client.put(path)
-            elif method == "DELETE":
-                r = client.delete(path)
-            else:
-                raise ValueError("bad method")
+            r = getattr(client, method.lower())(path)
         except Exception as e:
             failing_endpoints.append(path)
             schema_mismatches.append({"issue": "call_failed", "details": str(e)})
