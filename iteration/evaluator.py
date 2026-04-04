@@ -1,8 +1,10 @@
 import importlib
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict
 from fastapi.testclient import TestClient
-from iteration.schema_validator import validate_schema
+
+# IMPORTANT: match your actual function name
+from iteration.schema_validator import validate_json_schema
 
 
 def _load_app():
@@ -28,10 +30,12 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
             "status": "failure",
             "logs": [str(e)],
             "failing_endpoints": [],
-            "schema_mismatches": [{"issue": "import_failed"}],
+            "schema_mismatches": [{"issue": "import_failed", "details": str(e)}],
         }
 
-    for ep in spec.get("endpoints", []):
+    endpoints = spec.get("endpoints", [])
+
+    for ep in endpoints:
         method = ep.get("method", "GET").upper()
         path = ep.get("path")
         expected = ep.get("expected_response", {})
@@ -47,14 +51,14 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
                 r = client.delete(path)
             else:
                 raise ValueError("bad method")
-        except Exception:
+        except Exception as e:
             failing_endpoints.append(path)
-            schema_mismatches.append({"issue": "call_failed"})
+            schema_mismatches.append({"issue": "call_failed", "details": str(e)})
             continue
 
         if r.status_code >= 400:
             failing_endpoints.append(path)
-            schema_mismatches.append({"issue": "http_error"})
+            schema_mismatches.append({"issue": "http_error", "status": r.status_code})
             continue
 
         try:
@@ -64,10 +68,11 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
             schema_mismatches.append({"issue": "invalid_json"})
             continue
 
-        mismatches = validate_schema(expected, data)
+        mismatches = validate_json_schema(expected, data)
+
         if mismatches:
             failing_endpoints.append(path)
-            schema_mismatches.append({"issue": "schema", "m": mismatches})
+            schema_mismatches.append({"issue": "schema", "mismatches": mismatches})
 
     success = not failing_endpoints and not schema_mismatches
 
