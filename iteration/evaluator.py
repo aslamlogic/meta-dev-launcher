@@ -3,15 +3,19 @@ import sys
 from typing import Any, Dict
 from fastapi.testclient import TestClient
 
-# IMPORTANT: match your actual function name
 from iteration.schema_validator import validate_json_schema
 
 
-def _load_app():
-    if "generated_app.main" in sys.modules:
-        importlib.reload(sys.modules["generated_app.main"])
-    else:
-        import generated_app.main
+def _reload_generated_app():
+    # Remove ALL cached modules under generated_app
+    modules_to_delete = [m for m in sys.modules if m.startswith("generated_app")]
+    for m in modules_to_delete:
+        del sys.modules[m]
+
+    # Fresh import
+    import generated_app.main
+    importlib.reload(generated_app.main)
+
     from generated_app.main import app
     return app
 
@@ -22,9 +26,9 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
     schema_mismatches = []
 
     try:
-        app = _load_app()
+        app = _reload_generated_app()
         client = TestClient(app)
-        logs.append("App loaded")
+        logs.append("App loaded cleanly")
     except Exception as e:
         return {
             "status": "failure",
@@ -33,9 +37,7 @@ def evaluate_system(spec: Dict[str, Any]) -> Dict[str, Any]:
             "schema_mismatches": [{"issue": "import_failed", "details": str(e)}],
         }
 
-    endpoints = spec.get("endpoints", [])
-
-    for ep in endpoints:
+    for ep in spec.get("endpoints", []):
         method = ep.get("method", "GET").upper()
         path = ep.get("path")
         expected = ep.get("expected_response", {})
