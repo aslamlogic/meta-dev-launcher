@@ -34,4 +34,3 @@ def main(repo: str):
         "message": f"Workflow triggered for {repo}",
         "github": result
     }
-    }
