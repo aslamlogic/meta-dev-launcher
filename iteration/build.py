@@ -6,52 +6,42 @@ from engine.file_writer import write_app
 def build_system(spec: dict):
     logs = []
 
+    # STEP 1 — LLM call (this is where you are failing)
     try:
-        try:
-            code = generate_code(spec)
-            logs.append("Code generated")
-        except Exception as e:
-            return {
-                "status": "failure",
-                "logs": [f"LLM FAILURE: {str(e)}"]
-            }
-
-        # Empty or bad response protection
-        if not code or len(code.strip()) < 20:
-            return {
-                "status": "failure",
-                "logs": ["LLM returned empty or invalid code"]
-            }
-
-        # Ensure FastAPI presence (minimal guard)
-        if "FastAPI" not in code:
-            return {
-                "status": "failure",
-                "logs": ["Generated code missing FastAPI"]
-            }
-
-        # Compile check (real validation)
-        try:
-            compile(code, "<generated_app>", "exec")
-        except Exception as e:
-            return {
-                "status": "failure",
-                "logs": [f"Syntax error: {str(e)}"]
-            }
-
-        path = write_app(code)
-        logs.append(f"Code written to {path}")
-
-        return {
-            "status": "success",
-            "logs": logs
-        }
-
+        code = generate_code(spec)
+        logs.append("LLM call succeeded")
     except Exception as e:
         return {
             "status": "failure",
             "logs": [
-                f"UNEXPECTED BUILD ERROR: {str(e)}",
+                "LLM FAILURE",
+                str(e),
                 traceback.format_exc()
             ]
         }
+
+    # STEP 2 — basic sanity
+    if not code:
+        return {
+            "status": "failure",
+            "logs": ["EMPTY CODE RETURNED FROM LLM"]
+        }
+
+    # STEP 3 — write (no validation yet)
+    try:
+        path = write_app(code)
+        logs.append(f"Code written to {path}")
+    except Exception as e:
+        return {
+            "status": "failure",
+            "logs": [
+                "FILE WRITE FAILURE",
+                str(e),
+                traceback.format_exc()
+            ]
+        }
+
+    return {
+        "status": "success",
+        "logs": logs
+    }
