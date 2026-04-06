@@ -1,108 +1,93 @@
-"""
-Iteration Controller (v2)
-
-Fixes:
-- Passes `spec` into evaluate_system(spec)
-- Produces stable iteration output
-"""
-
 import json
-import os
-import time
-from typing import Dict, Any
+from pathlib import Path
 
-# Safe imports
-try:
-    from iteration.evaluator import evaluate_system
-except:
-    evaluate_system = None
+# =========================
+# GENERATOR (embedded)
+# =========================
 
-try:
-    from iteration.spec_updater import update_spec
-except:
-    update_spec = None
+GENERATED_APP_DIR = Path("generated_app")
+MAIN_FILE = GENERATED_APP_DIR / "main.py"
 
 
-# ---------------------------------------------------------------------
-# CORE LOOP
-# ---------------------------------------------------------------------
+def generate_app(spec: dict) -> dict:
+    try:
+        GENERATED_APP_DIR.mkdir(parents=True, exist_ok=True)
 
-def run_iteration_loop(spec_path: str = "specs/init.json") -> Dict[str, Any]:
+        code = build_main_py(spec)
 
-    result = {
-        "status": "started",
-        "iterations": [],
-        "final_status": None
-    }
+        with open(MAIN_FILE, "w") as f:
+            f.write(code)
 
-    if not os.path.exists(spec_path):
+        return {
+            "status": "success",
+            "generated_files": [str(MAIN_FILE)]
+        }
+
+    except Exception as e:
         return {
             "status": "error",
-            "message": f"Spec file not found: {spec_path}"
+            "message": str(e)
         }
 
-    # Load spec
-    with open(spec_path, "r") as f:
-        spec = json.load(f)
 
-    max_iterations = 3
+def build_main_py(spec: dict) -> str:
+    return '''from fastapi import FastAPI
 
-    for i in range(max_iterations):
-        iteration_result = {
-            "iteration": i + 1,
-            "status": "running"
-        }
+app = FastAPI()
 
-        # --------------------------------------------------
-        # EVALUATION (FIXED)
-        # --------------------------------------------------
-        if evaluate_system:
-            try:
-                eval_result = evaluate_system(spec)
-            except Exception as e:
-                eval_result = {
-                    "status": "error",
-                    "message": str(e)
-                }
-        else:
-            eval_result = {
-                "status": "skipped",
-                "message": "evaluator not implemented"
+
+@app.get("/")
+def root():
+    return {"status": "generated_app_running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/echo")
+def echo(payload: dict):
+    return {"received": payload}
+'''
+
+
+# =========================
+# EVALUATOR IMPORT
+# =========================
+
+from iteration.evaluator import evaluate_system
+
+
+# =========================
+# CONTROLLER ENTRY POINT
+# =========================
+
+def run_iteration_loop(spec: dict):
+    iterations = []
+
+    for i in range(1, 2):  # single iteration for now
+
+        # STEP 1: GENERATE APP
+        generation_result = generate_app(spec)
+
+        if generation_result["status"] != "success":
+            return {
+                "status": "failed",
+                "stage": "generation",
+                "error": generation_result
             }
 
-        iteration_result["evaluation"] = eval_result
+        # STEP 2: EVALUATE
+        evaluation = evaluate_system(spec)
 
-        # --------------------------------------------------
-        # CHECK SUCCESS
-        # --------------------------------------------------
-        if eval_result.get("goal_satisfied") is True:
-            iteration_result["status"] = "success"
-            result["iterations"].append(iteration_result)
-            result["final_status"] = "success"
-            return result
+        iterations.append({
+            "iteration": i,
+            "status": "failed" if evaluation.get("status") != "success" else "success",
+            "evaluation": evaluation
+        })
 
-        # --------------------------------------------------
-        # SPEC UPDATE
-        # --------------------------------------------------
-        if update_spec:
-            try:
-                spec = update_spec(spec, eval_result)
-            except Exception as e:
-                iteration_result["spec_update_error"] = str(e)
-
-        iteration_result["status"] = "failed"
-        result["iterations"].append(iteration_result)
-
-        time.sleep(1)
-
-    result["final_status"] = "failed"
-    return result
-
-
-# ---------------------------------------------------------------------
-# TEST ENTRYPOINT
-# ---------------------------------------------------------------------
-
-if __name__ == "__main__":
-    output = run_iteration_loop()
-    print(json.dumps(output, indent=2))
+    return {
+        "status": "started",
+        "iterations": iterations
+    }
