@@ -1,46 +1,54 @@
-# iteration/evaluator.py
-
 from fastapi.testclient import TestClient
 
 
-def evaluate_system(app, spec):
+def evaluate_system(app, spec: dict):
     """
-    Deterministic evaluator for generated FastAPI app.
-    No httpx usage. No 'app=' argument misuse.
+    Evaluates generated FastAPI app against spec.
     """
-
-    result = {
-        "status": "failure",
-        "logs": [],
-        "failing_endpoints": [],
-        "schema_mismatches": []
-    }
 
     try:
-        # CORRECT client
         client = TestClient(app)
 
-        # --- Health check ---
-        response = client.get("/health")
+        results = {
+            "status": "success",
+            "logs": [],
+            "failing_endpoints": [],
+            "schema_mismatches": []
+        }
 
-        if response.status_code != 200:
-            result["logs"].append(f"Health check failed: {response.status_code}")
-            return result
+        endpoints = spec.get("endpoints", [])
 
-        try:
-            data = response.json()
-        except Exception:
-            result["logs"].append("Health endpoint did not return JSON")
-            return result
+        for ep in endpoints:
+            method = ep.get("method", "GET").upper()
+            path = ep.get("path")
 
-        if data.get("status") != "ok":
-            result["logs"].append("Health endpoint returned invalid payload")
-            return result
+            try:
+                if method == "GET":
+                    response = client.get(path)
+                elif method == "POST":
+                    response = client.post(path, json={})
+                else:
+                    results["logs"].append(f"Unsupported method: {method}")
+                    continue
 
-        # --- Passed ---
-        result["status"] = "success"
-        return result
+                if response.status_code >= 400:
+                    results["status"] = "failure"
+                    results["failing_endpoints"].append(f"{method} {path}")
+                    results["logs"].append(
+                        f"{method} {path} failed with {response.status_code}"
+                    )
+
+            except Exception as e:
+                results["status"] = "failure"
+                results["failing_endpoints"].append(f"{method} {path}")
+                results["logs"].append(str(e))
+
+        return results
 
     except Exception as e:
-        result["logs"].append(f"EVAL_ERROR: {str(e)}")
-        return result
+        return {
+            "status": "failure",
+            "logs": [f"EVAL_ERROR: {str(e)}"],
+            "failing_endpoints": [],
+            "schema_mismatches": []
+        }
