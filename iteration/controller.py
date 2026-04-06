@@ -1,15 +1,9 @@
 """
-Iteration Controller
+Iteration Controller (v2)
 
-Entry point for the Meta system execution loop.
-This module orchestrates:
-
-- Spec loading
-- Evaluation
-- Iteration loop
-- Reporting
-
-This file MUST expose: run_iteration_loop
+Fixes:
+- Passes `spec` into evaluate_system(spec)
+- Produces stable iteration output
 """
 
 import json
@@ -17,7 +11,7 @@ import os
 import time
 from typing import Dict, Any
 
-# Placeholder imports (safe even if modules are incomplete)
+# Safe imports
 try:
     from iteration.evaluator import evaluate_system
 except:
@@ -34,15 +28,6 @@ except:
 # ---------------------------------------------------------------------
 
 def run_iteration_loop(spec_path: str = "specs/init.json") -> Dict[str, Any]:
-    """
-    Main deterministic iteration loop
-
-    Args:
-        spec_path: path to initial specification
-
-    Returns:
-        dict with execution result
-    """
 
     result = {
         "status": "started",
@@ -69,11 +54,11 @@ def run_iteration_loop(spec_path: str = "specs/init.json") -> Dict[str, Any]:
         }
 
         # --------------------------------------------------
-        # EVALUATION
+        # EVALUATION (FIXED)
         # --------------------------------------------------
         if evaluate_system:
             try:
-                eval_result = evaluate_system()
+                eval_result = evaluate_system(spec)
             except Exception as e:
                 eval_result = {
                     "status": "error",
@@ -108,7 +93,6 @@ def run_iteration_loop(spec_path: str = "specs/init.json") -> Dict[str, Any]:
         iteration_result["status"] = "failed"
         result["iterations"].append(iteration_result)
 
-        # small delay to simulate controlled loop
         time.sleep(1)
 
     result["final_status"] = "failed"
@@ -116,7 +100,7 @@ def run_iteration_loop(spec_path: str = "specs/init.json") -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------
-# OPTIONAL TEST ENTRYPOINT
+# TEST ENTRYPOINT
 # ---------------------------------------------------------------------
 
 if __name__ == "__main__":
