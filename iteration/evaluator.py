@@ -5,12 +5,12 @@ from pathlib import Path
 
 
 def load_generated_app():
+    app_path = Path("generated_app/main.py")
+
+    if not app_path.exists():
+        return None, "generated_app/main.py missing"
+
     try:
-        app_path = Path("generated_app/main.py")
-
-        if not app_path.exists():
-            return None, "generated_app/main.py missing"
-
         spec = importlib.util.spec_from_file_location("generated_app.main", app_path)
         module = importlib.util.module_from_spec(spec)
         sys.modules["generated_app.main"] = module
@@ -38,11 +38,9 @@ def evaluate_system(spec: dict) -> dict:
 
         results = []
 
-        # TEST ROOT
         r = client.get("/")
         results.append(("GET /", r.status_code == 200))
 
-        # TEST HEALTH
         r = client.get("/health")
         results.append(("GET /health", r.status_code == 200))
 
