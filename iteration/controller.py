@@ -1,36 +1,57 @@
 import os
 import requests
 
-GITHUB_API = "https://api.github.com"
-OWNER = "aslamlogic"
 
+def main(repo_name: str):
+    """
+    Trigger GitHub Actions workflow for a given repository
+    """
 
-def trigger_workflow(repo: str):
-    token = os.getenv("GITHUB_TOKEN_CUSTOM")
+    try:
+        # --- CONFIG ---
+        owner = "aslamlogic"
+        workflow_file = "run-meta.yml"   # must match your repo
+        branch = "main"
 
-    url = f"{GITHUB_API}/repos/{OWNER}/{repo}/actions/workflows/run-meta.yml/dispatches"
+        # --- TOKEN (CRITICAL FIX) ---
+        token = os.getenv("META_GITHUB_TOKEN")
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json"
-    }
+        if not token:
+            return {
+                "status": "error",
+                "error": "META_GITHUB_TOKEN not found in environment"
+            }
 
-    data = {
-        "ref": "main"
-    }
+        # --- API URL ---
+        url = f"https://api.github.com/repos/{owner}/{repo_name}/actions/workflows/{workflow_file}/dispatches"
 
-    response = requests.post(url, headers=headers, json=data)
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28"
+        }
 
-    return {
-        "status_code": response.status_code,
-        "response": response.text
-    }
+        payload = {
+            "ref": branch
+        }
 
+        # --- REQUEST ---
+        response = requests.post(url, json=payload, headers=headers)
 
-def main(repo: str):
-    result = trigger_workflow(repo)
+        return {
+            "status": "executed",
+            "repo": repo_name,
+            "result": {
+                "message": f"Workflow triggered for {repo_name}",
+                "github": {
+                    "status_code": response.status_code,
+                    "response": response.text
+                }
+            }
+        }
 
-    return {
-        "message": f"Workflow triggered for {repo}",
-        "github": result
-    }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
