@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Any
+import os
 
 app = FastAPI()
 
@@ -20,6 +21,13 @@ def runs():
     return {"status": "ready"}
 
 
+@app.get("/env")
+def env():
+    return {
+        "META_GITHUB_TOKEN": bool(os.getenv("META_GITHUB_TOKEN"))
+    }
+
+
 @app.post("/run")
 async def run_system(request: Request) -> Any:
     try:
@@ -29,7 +37,6 @@ async def run_system(request: Request) -> Any:
         if not repo:
             return {"status": "error", "error": "repo not provided"}
 
-        # Lazy import (safe)
         from iteration.controller import main
 
         result = main(repo)
