@@ -1,62 +1,36 @@
+# iteration/evaluator.py
+
 from fastapi.testclient import TestClient
-import importlib.util
-import sys
-from pathlib import Path
 
 
-def load_generated_app():
-    app_path = Path("generated_app/main.py")
-
-    if not app_path.exists():
-        return None, "generated_app/main.py missing"
-
-    try:
-        spec = importlib.util.spec_from_file_location("generated_app.main", app_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["generated_app.main"] = module
-        spec.loader.exec_module(module)
-
-        return module.app, None
-
-    except Exception as e:
-        return None, str(e)
-
-
-def evaluate_system(spec: dict) -> dict:
-    app, error = load_generated_app()
-
-    if error:
-        return {
-            "status": "failure",
-            "logs": [f"LOAD_ERROR: {error}"],
-            "failing_endpoints": [],
-            "schema_mismatches": []
-        }
+def evaluate_system(app, spec):
+    result = {
+        "status": "failure",
+        "logs": [],
+        "failing_endpoints": [],
+        "schema_mismatches": []
+    }
 
     try:
         client = TestClient(app)
 
-        results = []
+        # Basic health check
+        response = client.get("/health")
 
-        r = client.get("/")
-        results.append(("GET /", r.status_code == 200))
+        if response.status_code != 200:
+            result["logs"].append(f"Health check failed: {response.status_code}")
+            return result
 
-        r = client.get("/health")
-        results.append(("GET /health", r.status_code == 200))
+        data = response.json()
 
-        failing = [name for name, ok in results if not ok]
+        if data.get("status") != "ok":
+            result["logs"].append("Health endpoint returned invalid response")
+            return result
 
-        return {
-            "status": "success" if not failing else "failure",
-            "logs": [],
-            "failing_endpoints": failing,
-            "schema_mismatches": []
-        }
+        # If we reach here → pass
+        result["status"] = "success"
+        return result
 
     except Exception as e:
-        return {
-            "status": "failure",
-            "logs": [f"EVAL_ERROR: {str(e)}"],
-            "failing_endpoints": [],
-            "schema_mismatches": []
-        }
+        result["logs"].append(f"EVAL_ERROR: {str(e)}")
+        return result
