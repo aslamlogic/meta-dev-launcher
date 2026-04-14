@@ -1,24 +1,63 @@
-def update_spec(spec, evaluation):
-    new_spec = {"endpoints": []}
+def update_spec_with_failures(spec, evaluation):
+    """
+    Deterministic correction injection.
+    This is where system LEARNS from failure.
+    """
 
-    for ep in spec.get("endpoints", []):
-        method = ep.get("method", "")
-        path = ep.get("path", "")
+    if "constraints" not in spec:
+        spec["constraints"] = []
 
-        # Fix invalid methods
-        if isinstance(method, str):
-            method = method.upper()
+    logs = evaluation.get("logs", [])
 
-        # Basic fallback
-        if method not in {"GET", "POST", "PUT", "DELETE"}:
-            method = "GET"
+    # ============================================================
+    # CRITICAL FIX: APP CONTRACT ENFORCEMENT
+    # ============================================================
+    for log in logs:
 
-        if not path.startswith("/"):
-            path = f"/{path}"
+        if "app_not_callable" in log:
 
-        new_spec["endpoints"].append({
-            "method": method,
-            "path": path
-        })
+            constraint = {
+                "type": "hard_requirement",
+                "rule": "application_must_be_fastapi",
+                "instruction": (
+                    "The generated application MUST define:\n"
+                    "from fastapi import FastAPI\n"
+                    "app = FastAPI()\n"
+                    "AND must expose 'app' as the ASGI callable.\n"
+                    "DO NOT return dictionaries or non-callable objects."
+                )
+            }
 
-    return new_spec
+            if constraint not in spec["constraints"]:
+                spec["constraints"].append(constraint)
+
+        if "unsupported_method" in log:
+
+            constraint = {
+                "type": "hard_requirement",
+                "rule": "valid_http_methods",
+                "instruction": (
+                    "All endpoints MUST use valid HTTP methods: "
+                    "GET, POST, PUT, DELETE, PATCH."
+                )
+            }
+
+            if constraint not in spec["constraints"]:
+                spec["constraints"].append(constraint)
+
+        if "http_404" in log:
+
+            constraint = {
+                "type": "hard_requirement",
+                "rule": "required_health_endpoint",
+                "instruction": (
+                    "Application MUST implement endpoint:\n"
+                    "GET /health\n"
+                    "return {'status': 'ok'}"
+                )
+            }
+
+            if constraint not in spec["constraints"]:
+                spec["constraints"].append(constraint)
+
+    return spec
