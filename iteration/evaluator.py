@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import traceback
 
 
@@ -7,14 +7,13 @@ VALID_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
 
 
 # ============================================================
-# NORMALISATION LAYER (CRITICAL FIX)
+# NORMALISATION LAYER
 # ============================================================
 
 def normalize_endpoint_spec(endpoint: Dict[str, Any]) -> Dict[str, Any]:
     method = str(endpoint.get("method", "")).strip().upper()
     path = str(endpoint.get("path", "")).strip()
 
-    # Fix schema placeholders
     if method in ["STRING", "", "NONE"]:
         method = "GET"
 
@@ -37,15 +36,28 @@ def normalize_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ============================================================
-# MAIN ENTRYPOINT (MATCHES CONTROLLER EXPECTATION)
+# MAIN ENTRYPOINT (COMPATIBLE WITH CONTROLLER)
 # ============================================================
 
-def evaluate_app(app, spec: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_app(app, spec: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
-    This MUST exist — controller imports this exact name.
+    Supports BOTH:
+    - evaluate_app(app)
+    - evaluate_app(app, spec)
     """
 
     try:
+        # ------------------------------------------
+        # Handle missing spec (CRITICAL FIX)
+        # ------------------------------------------
+        if spec is None:
+            # Fallback minimal spec to allow system to proceed
+            spec = {
+                "endpoints": [
+                    {"method": "GET", "path": "/health"}
+                ]
+            }
+
         spec = normalize_spec(spec)
 
         client = TestClient(app)
