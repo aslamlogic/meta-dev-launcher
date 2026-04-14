@@ -20,7 +20,6 @@ def load_generated_app():
 
         module_name = "generated_app.main"
 
-        # Force fresh import each run
         if module_name in sys.modules:
             del sys.modules[module_name]
 
@@ -41,57 +40,85 @@ def load_generated_app():
         return None, f"LOAD_ERROR: {str(e)}"
 
 
+def update_spec(spec: dict, evaluation: dict) -> dict:
+    """
+    Minimal deterministic spec updater.
+    For now: no-op (placeholder for real logic).
+    """
+    return spec
+
+
 def run_iteration_loop(spec: dict):
     """
-    Deterministic single-iteration controller.
-    Flow:
-    1. Generate app
-    2. Load generated app
-    3. Evaluate app against spec
+    Multi-iteration deterministic controller.
     """
+
+    MAX_ITERATIONS = 3
     iterations = []
 
     try:
-        # STEP 1: generate app
-        generation_result = generate_app(spec)
+        current_spec = spec
 
-        if generation_result.get("status") != "success":
-            return {
-                "status": "failed",
-                "stage": "generation",
-                "error": generation_result
-            }
+        for i in range(1, MAX_ITERATIONS + 1):
+            print(f"[ITERATION] Starting iteration {i}")
 
-        # STEP 2: load generated app
-        app, load_error = load_generated_app()
+            # STEP 1: generate app
+            generation_result = generate_app(current_spec)
 
-        if load_error:
-            iterations.append({
-                "iteration": 1,
-                "status": "failed",
-                "evaluation": {
-                    "status": "failure",
-                    "logs": [load_error],
-                    "failing_endpoints": [],
-                    "schema_mismatches": []
+            if generation_result.get("status") != "success":
+                print(f"[ITERATION] Generation failed at iteration {i}")
+                return {
+                    "status": "failed",
+                    "stage": "generation",
+                    "iteration": i,
+                    "error": generation_result
                 }
-            })
-            return {
-                "status": "started",
-                "iterations": iterations
+
+            # STEP 2: load generated app
+            app, load_error = load_generated_app()
+
+            if load_error:
+                print(f"[ITERATION] Load failed at iteration {i}: {load_error}")
+                iterations.append({
+                    "iteration": i,
+                    "status": "failed",
+                    "evaluation": {
+                        "status": "failure",
+                        "logs": [load_error],
+                        "failing_endpoints": [],
+                        "schema_mismatches": []
+                    }
+                })
+                break
+
+            # STEP 3: evaluate app
+            evaluation = evaluate_system(app, current_spec)
+
+            iteration_result = {
+                "iteration": i,
+                "status": "success" if evaluation.get("status") == "success" else "failed",
+                "evaluation": evaluation
             }
 
-        # STEP 3: evaluate app  ← FIXED CALL
-        evaluation = evaluate_system(app, spec)
+            iterations.append(iteration_result)
 
-        iterations.append({
-            "iteration": 1,
-            "status": "success" if evaluation.get("status") == "success" else "failed",
-            "evaluation": evaluation
-        })
+            print(f"[ITERATION] Completed iteration {i} with status: {iteration_result['status']}")
 
+            # TERMINATION: success
+            if evaluation.get("status") == "success":
+                print(f"[ITERATION] Converged at iteration {i}")
+                return {
+                    "status": "converged",
+                    "iterations": iterations
+                }
+
+            # STEP 4: update spec
+            current_spec = update_spec(current_spec, evaluation)
+
+        # TERMINATION: max iterations reached
+        print("[ITERATION] Max iterations reached")
         return {
-            "status": "started",
+            "status": "max_iterations_reached",
             "iterations": iterations
         }
 
