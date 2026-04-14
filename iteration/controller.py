@@ -1,42 +1,89 @@
-from iteration.generator import generate_app
+import traceback
 from iteration.evaluator import evaluate_app
+from iteration.spec_updater import update_spec_with_failures
+from iteration.generator import generate_code
+from iteration.prompt_builder import build_prompt
 
 
-def run_iteration_loop(spec, max_iterations=3):
-    print("🔥 NEW CONTROLLER ACTIVE 🔥")
+MAX_ITERATIONS = 3
+
+
+def run_iteration_loop(spec: dict, smr: str):
+    """
+    Main deterministic iteration loop.
+    """
 
     iterations = []
 
-    for i in range(1, max_iterations + 1):
-        print(f"[ITERATION] Starting iteration {i}")
+    try:
 
-        # Generate code
-        generate_app(spec)
+        for i in range(1, MAX_ITERATIONS + 1):
 
-        # Evaluate generated app
-        evaluation = evaluate_app(spec)
+            # --------------------------------------------------
+            # BUILD PROMPT (CRITICAL FIX — constraint injection)
+            # --------------------------------------------------
+            prompt = build_prompt(spec, smr)
 
-        status = "success" if evaluation["status"] == "success" else "failed"
+            # --------------------------------------------------
+            # GENERATE CODE
+            # --------------------------------------------------
+            try:
+                app = generate_code(prompt)
+            except Exception as e:
+                iterations.append({
+                    "iteration": i,
+                    "status": "failed",
+                    "evaluation": {
+                        "status": "failure",
+                        "logs": [f"GENERATION ERROR → {str(e)}"],
+                        "failing_endpoints": [],
+                        "schema_mismatches": []
+                    }
+                })
+                break
 
-        iterations.append({
-            "iteration": i,
-            "status": status,
-            "evaluation": evaluation
-        })
+            # --------------------------------------------------
+            # EVALUATE
+            # --------------------------------------------------
+            evaluation = evaluate_app(app, spec)
 
-        print(f"[ITERATION] Completed iteration {i} with status: {status}")
-
-        if status == "success":
-            print(f"[ITERATION] Converged at iteration {i}")
-            return {
-                "status": "converged",
-                "iterations": iterations
+            # --------------------------------------------------
+            # STORE ITERATION RESULT
+            # --------------------------------------------------
+            iteration_result = {
+                "iteration": i,
+                "status": "passed" if evaluation["status"] == "success" else "failed",
+                "evaluation": evaluation
             }
 
-    print("[ITERATION] Max iterations reached")
+            iterations.append(iteration_result)
 
-    return {
-        "status": "failed",
-        "reason": "max_iterations_reached",
-        "iterations": iterations
-    }
+            # --------------------------------------------------
+            # SUCCESS EXIT
+            # --------------------------------------------------
+            if evaluation["status"] == "success":
+                return {
+                    "status": "success",
+                    "iterations": iterations
+                }
+
+            # --------------------------------------------------
+            # UPDATE SPEC WITH FAILURES (CRITICAL)
+            # --------------------------------------------------
+            spec = update_spec_with_failures(spec, evaluation)
+
+        # ------------------------------------------------------
+        # MAX ITERATIONS REACHED
+        # ------------------------------------------------------
+        return {
+            "status": "failed",
+            "reason": "max_iterations_reached",
+            "iterations": iterations
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "trace": traceback.format_exc()
+        }
