@@ -42,14 +42,29 @@ def load_generated_app():
 
 def update_spec(spec: dict, evaluation: dict) -> dict:
     """
-    Minimal deterministic spec updater.
+    Remove failing endpoints from spec (simple adaptive behaviour)
     """
-    return spec
+    failing = set(evaluation.get("failing_endpoints", []))
+
+    new_endpoints = []
+
+    for ep in spec.get("endpoints", []):
+        key = f"{ep.get('method', 'GET')} {ep.get('path')}"
+        if key not in failing:
+            new_endpoints.append(ep)
+
+    new_spec = {
+        "endpoints": new_endpoints
+    }
+
+    print(f"[SPEC UPDATE] {new_spec}")
+
+    return new_spec
 
 
 def run_iteration_loop(spec: dict):
     """
-    Multi-iteration deterministic controller.
+    Multi-iteration deterministic controller with adaptive spec updates.
     """
 
     MAX_ITERATIONS = 3
