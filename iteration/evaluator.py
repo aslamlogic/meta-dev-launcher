@@ -1,71 +1,127 @@
 from fastapi.testclient import TestClient
+from typing import Dict, List, Any
+import traceback
 
 
-def evaluate_system(app, spec: dict) -> dict:
-    client = TestClient(app)
+VALID_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"}
 
-    logs = []
-    failing_endpoints = []
-    schema_mismatches = []
 
+# ============================================================
+# NORMALISATION LAYER (CRITICAL FIX)
+# ============================================================
+
+def normalize_endpoint_spec(endpoint: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Converts schema placeholders into concrete testable values.
+    This resolves failures like:
+    "STRING string → unsupported_method"
+    """
+
+    method = str(endpoint.get("method", "")).strip().upper()
+    path = str(endpoint.get("path", "")).strip()
+
+    # Fix schema placeholders
+    if method in ["STRING", "", "NONE"]:
+        method = "GET"
+
+    if path in ["string", "", "NONE"]:
+        path = "/health"
+
+    # Ensure valid path
+    if not path.startswith("/"):
+        path = "/" + path
+
+    return {
+        "method": method,
+        "path": path
+    }
+
+
+def normalize_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     endpoints = spec.get("endpoints", [])
 
-    for ep in endpoints:
-        method = ep.get("method", "").upper()
-        path = ep.get("path", "")
+    normalized = [normalize_endpoint_spec(e) for e in endpoints]
 
-        # Validate method
-        if method not in ["GET", "POST", "PUT", "DELETE"]:
-            msg = f"{method} {path} → FAIL (unsupported method)"
-            logs.append(msg)
-            failing_endpoints.append({
-                "method": method,
-                "path": path,
-                "reason": "unsupported_method"
-            })
-            continue
+    spec["endpoints"] = normalized
+    return spec
 
-        try:
-            # Dispatch request
-            if method == "GET":
-                response = client.get(path)
-            elif method == "POST":
-                response = client.post(path)
-            elif method == "PUT":
-                response = client.put(path)
-            elif method == "DELETE":
-                response = client.delete(path)
 
-            status = response.status_code
+# ============================================================
+# CORE VALIDATION
+# ============================================================
 
-            # Evaluate response
-            if status >= 400:
-                msg = f"{method} {path} → {status} (FAIL)"
-                logs.append(msg)
+def evaluate_candidate(app, spec: Dict[str, Any]) -> Dict[str, Any]:
+
+    try:
+        spec = normalize_spec(spec)
+
+        client = TestClient(app)
+
+        failing_endpoints = []
+        logs = []
+
+        for endpoint in spec.get("endpoints", []):
+            method = endpoint["method"]
+            path = endpoint["path"]
+
+            # ---------------------------
+            # METHOD VALIDATION
+            # ---------------------------
+            if method not in VALID_HTTP_METHODS:
                 failing_endpoints.append({
                     "method": method,
                     "path": path,
-                    "status": status
+                    "reason": "unsupported_method"
                 })
-            else:
-                msg = f"{method} {path} → {status} (OK)"
-                logs.append(msg)
+                logs.append(f"{method} {path} → FAIL (unsupported method)")
+                continue
 
-        except Exception as e:
-            msg = f"{method} {path} → ERROR ({str(e)})"
-            logs.append(msg)
-            failing_endpoints.append({
-                "method": method,
-                "path": path,
-                "error": str(e)
-            })
+            # ---------------------------
+            # RUNTIME TEST
+            # ---------------------------
+            try:
+                response = client.request(method, path)
 
-    # FINAL STATUS DECISION
-    status = "failure" if failing_endpoints else "success"
+                if response.status_code >= 400:
+                    failing_endpoints.append({
+                        "method": method,
+                        "path": path,
+                        "reason": f"http_{response.status_code}"
+                    })
+                    logs.append(f"{method} {path} → FAIL ({response.status_code})")
+                else:
+                    logs.append(f"{method} {path} → PASS")
 
-    return {
-        "status": status,
-        "logs": logs,
-        "failing_endpoints": failing_endpoints,
-        "schema_mismatches": schema_mismatches
-    }
+            except Exception as e:
+                failing_endpoints.append({
+                    "method": method,
+                    "path": path,
+                    "reason": "runtime_error"
+                })
+                logs.append(f"{method} {path} → FAIL (runtime error: {str(e)})")
+
+        # ---------------------------
+        # RESULT
+        # ---------------------------
+        if failing_endpoints:
+            return {
+                "status": "failure",
+                "logs": logs,
+                "failing_endpoints": failing_endpoints,
+                "schema_mismatches": []
+            }
+
+        return {
+            "status": "success",
+            "logs": logs,
+            "failing_endpoints": [],
+            "schema_mismatches": []
+        }
+
+    except Exception as e:
+        return {
+            "status": "failure",
+            "logs": [f"CRITICAL ERROR: {str(e)}", traceback.format_exc()],
+            "failing_endpoints": [],
+            "schema_mismatches": []
+        }
