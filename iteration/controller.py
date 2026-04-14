@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from iteration.generator import generate_app
-from iteration.evaluator import evaluate_system
 
 
 GENERATED_APP_PATH = Path("generated_app/main.py")
@@ -37,6 +36,16 @@ def load_generated_app():
         return None, f"LOAD_ERROR: {str(e)}"
 
 
+def load_evaluator():
+    module_name = "iteration.evaluator"
+
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+
+    import iteration.evaluator as evaluator
+    return evaluator.evaluate_system
+
+
 def update_spec(spec, evaluation):
     failing = evaluation.get("failing_endpoints", [])
 
@@ -54,10 +63,14 @@ def update_spec(spec, evaluation):
 
 
 def run_iteration_loop(spec: dict):
+    print("[DEBUG CONTROLLER SPEC]", spec)
+
     iterations = []
     max_iterations = 3
 
     try:
+        evaluate_system = load_evaluator()
+
         for i in range(max_iterations):
             print(f"[ITERATION] Starting iteration {i+1}")
 
@@ -79,6 +92,8 @@ def run_iteration_loop(spec: dict):
                     "error": load_error
                 }
 
+            print("[DEBUG BEFORE EVAL]", spec)
+
             evaluation = evaluate_system(app, spec)
 
             status = "success" if evaluation.get("status") == "success" else "failed"
@@ -98,7 +113,6 @@ def run_iteration_loop(spec: dict):
                     "iterations": iterations
                 }
 
-            # update spec
             spec = update_spec(spec, evaluation)
 
         print("[ITERATION] Max iterations reached")
