@@ -3,8 +3,9 @@ from fastapi.testclient import TestClient
 
 def evaluate_system(app, spec: dict):
     """
-    Evaluates generated FastAPI app against spec.
-    Now includes explicit logging of every endpoint call.
+    Strict evaluation:
+    - Endpoint must exist
+    - Must return 2xx ONLY to pass
     """
 
     results = {
@@ -32,17 +33,22 @@ def evaluate_system(app, spec: dict):
                     results["logs"].append(f"Unsupported method: {method}")
                     continue
 
-                # 🔴 LOG EVERY RESPONSE
-                results["logs"].append(f"{method} {path} → {response.status_code}")
-
-                if response.status_code >= 400:
+                # STRICT CHECK
+                if response.status_code != 200:
                     results["status"] = "failure"
                     results["failing_endpoints"].append(f"{method} {path}")
+                    results["logs"].append(
+                        f"{method} {path} → {response.status_code} (FAIL)"
+                    )
+                else:
+                    results["logs"].append(
+                        f"{method} {path} → 200 (OK)"
+                    )
 
             except Exception as e:
                 results["status"] = "failure"
                 results["failing_endpoints"].append(f"{method} {path}")
-                results["logs"].append(f"EXCEPTION {method} {path} → {str(e)}")
+                results["logs"].append(f"{method} {path} → EXCEPTION: {str(e)}")
 
         return results
 
