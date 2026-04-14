@@ -1,7 +1,19 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List
 from iteration.controller import run_iteration_loop
 
+
 app = FastAPI()
+
+
+class Endpoint(BaseModel):
+    method: str
+    path: str
+
+
+class Spec(BaseModel):
+    endpoints: List[Endpoint]
 
 
 @app.get("/")
@@ -10,13 +22,13 @@ def root():
 
 
 @app.post("/run")
-async def run(request: Request):
+def run(spec: Spec):
     try:
-        spec = await request.json()
+        spec_dict = spec.dict()
 
-        print("[DEBUG SPEC RECEIVED]", spec)
+        print("[DEBUG SPEC RECEIVED]", spec_dict)
 
-        result = run_iteration_loop(spec)
+        result = run_iteration_loop(spec_dict)
 
         return result
 
