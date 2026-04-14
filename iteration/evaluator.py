@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from typing import Dict, List, Any
+from typing import Dict, Any
 import traceback
 
 
@@ -11,12 +11,6 @@ VALID_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
 # ============================================================
 
 def normalize_endpoint_spec(endpoint: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Converts schema placeholders into concrete testable values.
-    This resolves failures like:
-    "STRING string → unsupported_method"
-    """
-
     method = str(endpoint.get("method", "")).strip().upper()
     path = str(endpoint.get("path", "")).strip()
 
@@ -27,7 +21,6 @@ def normalize_endpoint_spec(endpoint: Dict[str, Any]) -> Dict[str, Any]:
     if path in ["string", "", "NONE"]:
         path = "/health"
 
-    # Ensure valid path
     if not path.startswith("/"):
         path = "/" + path
 
@@ -39,18 +32,18 @@ def normalize_endpoint_spec(endpoint: Dict[str, Any]) -> Dict[str, Any]:
 
 def normalize_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     endpoints = spec.get("endpoints", [])
-
-    normalized = [normalize_endpoint_spec(e) for e in endpoints]
-
-    spec["endpoints"] = normalized
+    spec["endpoints"] = [normalize_endpoint_spec(e) for e in endpoints]
     return spec
 
 
 # ============================================================
-# CORE VALIDATION
+# MAIN ENTRYPOINT (MATCHES CONTROLLER EXPECTATION)
 # ============================================================
 
-def evaluate_candidate(app, spec: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_app(app, spec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    This MUST exist — controller imports this exact name.
+    """
 
     try:
         spec = normalize_spec(spec)
@@ -100,9 +93,6 @@ def evaluate_candidate(app, spec: Dict[str, Any]) -> Dict[str, Any]:
                 })
                 logs.append(f"{method} {path} → FAIL (runtime error: {str(e)})")
 
-        # ---------------------------
-        # RESULT
-        # ---------------------------
         if failing_endpoints:
             return {
                 "status": "failure",
