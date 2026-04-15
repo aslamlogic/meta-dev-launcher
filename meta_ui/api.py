@@ -1,61 +1,65 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from iteration.controller import run_iteration_loop
+"""
+meta_ui/api.py
 
+Concurrent execution API for Meta Dev Launcher
+"""
+
+from fastapi import FastAPI
+from threading import Thread
+from typing import Dict, Any
+
+from iteration.controller import run_iteration_loop
+from iteration.run_registry import get_run, list_runs
 
 app = FastAPI()
 
-
 # ============================================================
-# REQUEST MODEL
-# ============================================================
-
-class SpecRequest(BaseModel):
-    spec: dict
-
-
-# ============================================================
-# DEFAULT SMR (GOVERNANCE BASELINE)
+# RUN LAUNCHER (ASYNC)
 # ============================================================
 
-DEFAULT_SMR = """
-- System must produce valid Python code
-- Must define a FastAPI app instance
-- Must expose `app` as ASGI callable
-- Must implement GET /health endpoint returning {'status': 'ok'}
-- No placeholders, no pseudo-code
-"""
+@app.post("/run")
+def start_run(payload: Dict[str, Any]):
+
+    spec = payload.get("spec", {})
+    project_id = payload.get("project_id", "default")
+
+    # run in background
+    thread = Thread(target=run_iteration_loop, args=(spec, project_id))
+    thread.start()
+
+    return {
+        "status": "started",
+        "message": "Run launched in background"
+    }
 
 
 # ============================================================
-# ROUTES
+# RUN STATUS
 # ============================================================
 
-@app.get("/")
-def root():
-    return {"message": "Meta Dev Launcher running"}
+@app.get("/run/{run_id}")
+def get_run_status(run_id: str):
+    run = get_run(run_id)
 
+    if not run:
+        return {"error": "run not found"}
+
+    return run
+
+
+# ============================================================
+# LIST RUNS
+# ============================================================
+
+@app.get("/runs")
+def get_all_runs():
+    return {"runs": list_runs()}
+
+
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.post("/run")
-def run(spec_request: SpecRequest):
-    """
-    Executes full iteration loop
-    """
-
-    try:
-        result = run_iteration_loop(
-            spec_request.spec,
-            DEFAULT_SMR
-        )
-        return result
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
