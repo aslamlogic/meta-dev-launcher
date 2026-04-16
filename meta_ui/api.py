@@ -1,3 +1,4 @@
+# UI_MARKER
 from fastapi import FastAPI
 
 app = FastAPI()

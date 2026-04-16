@@ -1,3 +1,16 @@
+import os
+import subprocess
+from textwrap import dedent
+
+
+def write_file(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content.strip() + "\n")
+    print(f"UPDATED: {path}")
+
+
+SPEC_UPDATER = dedent("""
 from typing import Any, Dict, List
 
 
@@ -85,3 +98,13 @@ def health():
                 self._add(repairs, seen, code, "meta_ui/api.py", msg)
 
         return repairs
+""")
+
+
+write_file("iteration/spec_updater.py", SPEC_UPDATER)
+
+subprocess.run(["git", "add", "."], check=True)
+subprocess.run(["git", "commit", "-m", "Fix v3.3: remove controller self-generation"], check=True)
+subprocess.run(["git", "push"], check=True)
+
+print("CONVERGENCE V3.3 FIX APPLIED")
