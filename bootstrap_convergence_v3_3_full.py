@@ -1,8 +1,29 @@
-from typing import Any, Dict, List
+import os
+import subprocess
+from textwrap import dedent
+
+
+def write_file(path: str, content: str) -> None:
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content.rstrip() + "\n")
+    print(f"UPDATED: {path}")
+
+
+def read_file(path: str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+controller_source = read_file("iteration/controller.py")
+
+spec_updater = f'''from typing import Any, Dict, List
 
 
 class SpecUpdater:
-    FILE_TEMPLATES = {
+    FILE_TEMPLATES = {{
         "meta_ui/api.py": """# UI_MARKER
 from fastapi import FastAPI
 
@@ -10,7 +31,7 @@ app = FastAPI()
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {{"status": "ok"}}
 """,
         "iteration/rule_applicator.py": """def apply_rules(data):
     return data
@@ -23,7 +44,7 @@ app = FastAPI()
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {{"status": "ok"}}
 """,
         "generated_app/main.py": """from fastapi import FastAPI
 
@@ -31,10 +52,10 @@ app = FastAPI()
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {{"status": "ok"}}
 """,
-        "iteration/controller.py": 'import os\nfrom typing import Any, Dict, List, Set\n\nfrom engine.llm_interface import generate\nfrom iteration.evaluator import evaluate\nfrom iteration.spec_updater import SpecUpdater\n\n\nclass IterationController:\n    def __init__(self, max_iterations: int = 5):\n        self.max_iterations = max_iterations\n        self.spec_updater = SpecUpdater()\n\n    def _allowed_files(self) -> List[str]:\n        return [\n            "generated_app/main.py",\n            "apps/generated_app/main.py",\n            "meta_ui/api.py",\n            "iteration/rule_applicator.py",\n            "apps/__init__.py",\n        ]\n\n    def _write_single(self, workspace_path, path, content):\n        full = os.path.join(workspace_path, path)\n        os.makedirs(os.path.dirname(full), exist_ok=True)\n        with open(full, "w", encoding="utf-8") as f:\n            f.write(content)\n\n    def _apply_templates(self, workspace_path, repairs):\n        for r in repairs:\n            if r.get("action") == "create_file":\n                path = r.get("path")\n                template = r.get("template", "")\n                if path and template:\n                    self._write_single(workspace_path, path, template)\n                    print(f"TEMPLATE CREATED: {path}")\n\n    def _collect_main(self, workspace_path):\n        for p in ["generated_app/main.py", "apps/generated_app/main.py"]:\n            full = os.path.join(workspace_path, p)\n            if os.path.exists(full):\n                return open(full).read()\n        return ""\n\n    def _score(self, result):\n        return (10 if result.get("passed") else 0) - len(result.get("findings", []))\n\n    def _sig(self, result):\n        return set(f"{f.get(\'failure_code\')}|{f.get(\'path\')}" for f in result.get("findings", []))\n\n    def run(self, workspace_path, initial_spec_text, run_id="run"):\n        prev_score = None\n        prev_sig = set()\n        repairs = []\n\n        for i in range(self.max_iterations):\n            print(f"ITERATION {i}")\n\n            self._apply_templates(workspace_path, repairs)\n\n            files = generate(initial_spec_text, repairs, self._allowed_files())\n            for path, content in files.items():\n                self._write_single(workspace_path, path, content)\n\n            result = evaluate(self._collect_main(workspace_path))\n            score = self._score(result)\n            print(f"Score: {score}")\n\n            if result.get("passed"):\n                print("VALIDATED_BUILD")\n                return {"status": "SUCCESS", "score": score}\n\n            sig = self._sig(result)\n\n            if prev_score is not None and score <= prev_score:\n                print("NO IMPROVEMENT -> STOP")\n                return {"status": "FAIL", "reason": "no_improvement"}\n\n            if sig == prev_sig:\n                print("IDENTICAL FAILURE SIGNATURE -> STOP")\n                return {"status": "FAIL", "reason": "stuck"}\n\n            repairs = self.spec_updater.derive_constraints(result.get("findings", []))\n            prev_score = score\n            prev_sig = sig\n\n        return {"status": "FAIL", "reason": "max_iterations"}\n',
-    }
+        "iteration/controller.py": {controller_source!r},
+    }}
 
     def _append_repair(
         self,
@@ -50,13 +71,13 @@ def health():
         if key in seen:
             return
         seen.add(key)
-        repairs.append({
+        repairs.append({{
             "failure_code": failure_code,
             "action": action,
             "path": path,
             "template": self.FILE_TEMPLATES.get(path, ""),
             "message": message,
-        })
+        }})
 
     def derive_constraints(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         repairs: List[Dict[str, Any]] = []
@@ -166,3 +187,20 @@ def health():
                 continue
 
         return repairs
+'''
+
+write_file("iteration/spec_updater.py", spec_updater)
+
+subprocess.run(
+    [
+        "git",
+        "add",
+        "iteration/spec_updater.py",
+        "bootstrap_convergence_v3_3_full.py",
+    ],
+    check=True,
+)
+subprocess.run(["git", "commit", "-m", "Upgrade templates to full coverage"], check=True)
+subprocess.run(["git", "push"], check=True)
+
+print("CONVERGENCE V3.3 FULL DEPLOYED")
