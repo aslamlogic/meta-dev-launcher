@@ -23,25 +23,37 @@ jobs:
           pip install -r requirements.txt
 
       # ------------------------------
-      # P6 VALIDATION (DETERMINISTIC)
+      # LOOP-STOP FIX: direct file load
       # ------------------------------
 
-      - name: Validate import
-        run: |
-          python -c "import meta_ui.api"
-
-      - name: Validate app boot
+      - name: Load app directly from file
         run: |
           python - <<EOF
-from meta_ui.api import app
-print("APP_IMPORT_OK")
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("api", "meta_ui/api.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules["api"] = module
+spec.loader.exec_module(module)
+
+app = module.app
+print("APP_LOADED")
 EOF
 
       - name: Validate /health endpoint
         run: |
           python - <<EOF
+import importlib.util
+import sys
 from fastapi.testclient import TestClient
-from meta_ui.api import app
+
+spec = importlib.util.spec_from_file_location("api", "meta_ui/api.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules["api"] = module
+spec.loader.exec_module(module)
+
+app = module.app
 
 client = TestClient(app)
 r = client.get("/health")
