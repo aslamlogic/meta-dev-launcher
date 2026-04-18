@@ -27,14 +27,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install fastapi==0.95.2 pydantic==1.10.13 uvicorn==0.23.2
 
-      - name: Debug structure
+      - name: Verify repo root and structure
         run: |
+          echo "PWD:"
           pwd
-          ls -R
+          echo "FILES:"
+          ls -la
+          echo "META_UI CONTENT:"
+          ls -la meta_ui || echo "meta_ui missing"
+
+      - name: Test Python import directly
+        run: |
+          python - <<EOF
+import sys, os
+print("CWD:", os.getcwd())
+print("PATH:", sys.path)
+import meta_ui.api
+print("IMPORT SUCCESS")
+EOF
 
       - name: Start API and probe /health
         run: |
-          PYTHONPATH=$PWD python -m uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 &
+          cd $GITHUB_WORKSPACE
+          PYTHONPATH=$GITHUB_WORKSPACE python -m uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 &
           sleep 5
           curl --fail http://127.0.0.1:8000/health
 
