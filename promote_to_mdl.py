@@ -45,11 +45,13 @@ def run(cmd):
 
 def ensure_mdl_repo():
     if not MDL_DIR.exists():
-        run("git clone https://ghu_encZjlgDZ3w0BWXDUx1tFNxwUtIUG3EwyT2@github.com/aslamlogic/mdl-autonomous-build.git")
+        run("git init mdl-autonomous-build")
+        run("cd mdl-autonomous-build && git remote add origin $(git remote get-url deploy-origin)")
+        run("cd mdl-autonomous-build && git fetch origin")
+        run("cd mdl-autonomous-build && git checkout -t origin/main")
 
 def reset_mdl_repo():
     run(f"cd {MDL_DIR} && git fetch --all")
-    run(f"cd {MDL_DIR} && git checkout main")
     run(f"cd {MDL_DIR} && git reset --hard origin/main")
     run(f"cd {MDL_DIR} && git clean -fd")
 
@@ -86,3 +88,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
