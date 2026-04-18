@@ -43,12 +43,14 @@ def run(cmd):
     if result.returncode != 0:
         sys.exit(1)
 
+def get_mdl_url():
+    result = subprocess.check_output("git remote get-url origin", shell=True).decode().strip()
+    return result.replace("meta-dev-launcher", "mdl-autonomous-build")
+
 def ensure_mdl_repo():
     if not MDL_DIR.exists():
-        run("git init mdl-autonomous-build")
-        run("cd mdl-autonomous-build && git remote add origin $(git remote get-url deploy-origin)")
-        run("cd mdl-autonomous-build && git fetch origin")
-        run("cd mdl-autonomous-build && git checkout -t origin/main")
+        mdl_url = get_mdl_url()
+        run(f"git clone {mdl_url}")
 
 def reset_mdl_repo():
     run(f"cd {MDL_DIR} && git fetch --all")
@@ -88,4 +90,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
