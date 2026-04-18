@@ -1,0 +1,79 @@
+name: Meta Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout MDL
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
+      - name: Show repository structure
+        run: |
+          pwd
+          ls
+          find . -maxdepth 3 -type f | sort
+
+      - name: Ensure deployment-critical files exist
+        run: |
+          test -f meta_ui/api.py
+          test -f iteration/controller.py
+          test -f phase1_promote.py
+
+      - name: Create runtime.txt if missing
+        run: |
+          if [ ! -f runtime.txt ]; then
+            printf 'python-3.11.9\n' > runtime.txt
+          fi
+
+      - name: Create requirements.txt if missing
+        run: |
+          if [ ! -f requirements.txt ]; then
+            cat > requirements.txt <<'EOF'
+          fastapi==0.95.2
+          pydantic==1.10.13
+          uvicorn==0.23.2
+          EOF
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start API and probe /health
+        run: |
+          nohup uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+          sleep 5
+          cat uvicorn.log
+          curl --fail http://127.0.0.1:8000/health
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Promote Phase I runtime to MDL auto
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python phase1_promote.py
