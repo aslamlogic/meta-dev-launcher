@@ -2,41 +2,60 @@ name: Meta Build and Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout MDL
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version-file: '.python-version'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi==0.95.2 pydantic==1.10.13 uvicorn==0.23.2
+          pip install -r requirements.txt
 
-      - name: Start API and test
-        run: |
-          echo "PWD:"
-          pwd
-          echo "FILES:"
-          ls -la
-          echo "META_UI:"
-          ls -la meta_ui
-          export PYTHONPATH=$(pwd)
-          python -c "import meta_ui.api; print('IMPORT OK')"
-          python -m uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 &
-          sleep 5
-          curl --fail http://127.0.0.1:8000/health
+      # ------------------------------
+      # P6 VALIDATION (DETERMINISTIC)
+      # ------------------------------
 
-      - name: Run Phase 1 Promotion
+      - name: Validate import
         run: |
-          python phase1_promote.py
+          python -c "import meta_ui.api"
+
+      - name: Validate app boot
+        run: |
+          python - <<EOF
+from meta_ui.api import app
+print("APP_IMPORT_OK")
+EOF
+
+      - name: Validate /health endpoint
+        run: |
+          python - <<EOF
+from fastapi.testclient import TestClient
+from meta_ui.api import app
+
+client = TestClient(app)
+r = client.get("/health")
+
+assert r.status_code == 200, f"Status not 200: {r.status_code}"
+assert isinstance(r.json(), dict), "Response not JSON"
+
+print("HEALTH_OK", r.json())
+EOF
+
+  deploy:
+    needs: build-and-validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deployment marker
+        run: echo "Validation passed — ready for Render deploy"
