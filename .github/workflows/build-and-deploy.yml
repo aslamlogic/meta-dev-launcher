@@ -10,25 +10,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout MDL
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - run: |
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install fastapi==0.95.2 pydantic==1.10.13 uvicorn==0.23.2
 
-      - run: |
+      - name: Start API and test
+        run: |
           echo "PWD:"
           pwd
+          echo "FILES:"
           ls -la
+          echo "META_UI:"
           ls -la meta_ui
-
-      - run: |
-          PYTHONPATH=$PWD python -m uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 &
+          export PYTHONPATH=$(pwd)
+          python -c "import meta_ui.api; print('IMPORT OK')"
+          python -m uvicorn meta_ui.api:app --host 0.0.0.0 --port 8000 &
           sleep 5
           curl --fail http://127.0.0.1:8000/health
 
-      - run: python phase1_promote.py
+      - name: Run Phase 1 Promotion
+        run: |
+          python phase1_promote.py
